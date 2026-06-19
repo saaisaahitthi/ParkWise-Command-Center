@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
 import math
+import pickle
+import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 from sklearn.dummy import DummyRegressor
@@ -9,17 +13,20 @@ from sklearn.metrics import mean_absolute_error
 from sqlalchemy.orm import Session
 
 from app.ml.forecast import (
+    ForecastFeatureBuilder,
     ForecastModel,
     ForecastPredictor,
     ForecastTrainer,
 )
 from app.ml.forecast.feature_builder import normalize_eis, risk_category_from_eis
+from app.ml.forecast.explainer import ForecastExplainer
 from app.ml.forecast.model import ForecastPrediction, TrainingResult
 from app.models.hotspot import Hotspot
 from app.repositories.forecast_repository import ForecastRepository
 
 
 _MODEL_REGISTRY: Dict[int, Any] = {}
+_ARTIFACT_DIR = Path(__file__).resolve().parents[1] / "ml" / "artifacts"
 
 
 class CrossSectionalForecastModel:
@@ -89,7 +96,7 @@ class CrossSectionalForecastModel:
         )
 
     def predict_one(self, features: Sequence[float]) -> ForecastPrediction:
-        cross_sectional = self._prediction_features(features)
+        cross_sectional = self.prediction_features(features)
         if self._delegate.is_trained:
             return self._delegate.predict_one(cross_sectional)
 
@@ -109,25 +116,50 @@ class CrossSectionalForecastModel:
             return self._delegate.get_feature_importance()
         return {name: 0.0 for name in self.feature_names}
 
-    def _prediction_features(self, features: Sequence[float]) -> List[float]:
-        hotspot_id = int(features[0])
-        return [
-            float(hotspot_id),
-            float(features[6]),
-            float(features[7]),
-            float(features[8]),
-            float(features[9]),
-            float(features[10]),
-            float(features[11]),
-            float(features[12]),
-            float(self.total_violations.get(hotspot_id, 0.0)),
-        ]
+    def prediction_features(self, features: Sequence[float]) -> List[float]:
+        source_names = ForecastFeatureBuilder.feature_names
+        if len(features) != len(source_names):
+            raise ValueError(
+                "Forecast feature vector does not match the saved input schema."
+            )
+
+        available = {
+            name: float(value)
+            for name, value in zip(source_names, features)
+        }
+        hotspot_id = int(available["hotspot_id"])
+        available["total_violations"] = float(
+            self.total_violations.get(hotspot_id, 0.0)
+        )
+        return [available[name] for name in self.feature_names]
 
     def _sync_delegate(self) -> None:
         self.model = self._delegate.model
         self.model_type = self._delegate.model_type
         self.training_metrics = self._delegate.training_metrics
         self.is_trained = self._delegate.is_trained
+
+
+class CrossSectionalForecastExplainer:
+    """Explain the exact saved cross-sectional feature vector."""
+
+    def __init__(self) -> None:
+        self._explainer = ForecastExplainer()
+
+    def explain(
+        self,
+        model: CrossSectionalForecastModel,
+        features: Sequence[float],
+        feature_names: Sequence[str],
+        top_n: int = 5,
+    ) -> Dict[str, Any]:
+        transformed = model.prediction_features(features)
+        return self._explainer.explain(
+            model=model,
+            features=transformed,
+            feature_names=model.feature_names,
+            top_n=top_n,
+        )
 
 
 class ForecastService:
@@ -174,6 +206,20 @@ class ForecastService:
             rows_used = output.rows_used
             training_mode = "historical"
 
+        self._save_model_artifact(
+            model=model,
+            horizon_days=horizon_days,
+            feature_names=list(result.feature_names),
+            metrics={
+                "mae": self._json_metric(result.mae),
+                "r2": self._json_metric(result.r2),
+                "train_size": result.train_size,
+                "validation_size": result.validation_size,
+                "rows_used": rows_used,
+                "model_type": result.model_type,
+                "training_mode": training_mode,
+            },
+        )
         _MODEL_REGISTRY[horizon_days] = model
 
         return {
@@ -253,14 +299,24 @@ class ForecastService:
         model = _MODEL_REGISTRY.get(horizon_days)
 
         if model is None:
-            raise RuntimeError(
-                f"Forecast model for horizon_days={horizon_days} is not trained. "
-                "Call POST /forecast/train first."
-            )
+            model = self._load_latest_model_artifact(horizon_days)
+            _MODEL_REGISTRY[horizon_days] = model
 
         eis_scores = self.repository.get_historical_eis_scores(hotspot_id=hotspot_id)
 
-        predictor = ForecastPredictor(model=model)
+        if isinstance(model, CrossSectionalForecastModel):
+            predictor = ForecastPredictor(
+                model=model,
+                explainer=CrossSectionalForecastExplainer(),
+            )
+        else:
+            expected_feature_names = list(ForecastFeatureBuilder.feature_names)
+            if list(getattr(model, "feature_names", [])) != expected_feature_names:
+                raise RuntimeError(
+                    "Saved forecast model feature order is incompatible with "
+                    "the current prediction feature builder."
+                )
+            predictor = ForecastPredictor(model=model)
         outputs = predictor.predict(
             eis_scores=eis_scores,
             horizon_days=horizon_days,
@@ -303,6 +359,104 @@ class ForecastService:
             "replace_existing": replace_existing,
             "pipeline_run_id": pipeline_run_id,
         }
+
+    def _save_model_artifact(
+        self,
+        model: Any,
+        horizon_days: int,
+        feature_names: List[str],
+        metrics: Dict[str, Any],
+    ) -> None:
+        saved_feature_names = list(getattr(model, "feature_names", []))
+        if saved_feature_names != feature_names:
+            raise RuntimeError(
+                "Refusing to save forecast model with mismatched feature order."
+            )
+
+        _ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.utcnow()
+        safe_version = re.sub(
+            r"[^A-Za-z0-9_.-]+",
+            "_",
+            str(model.model_version),
+        )
+        artifact_name = (
+            f"forecast_h{horizon_days}_{safe_version}_"
+            f"{timestamp.strftime('%Y%m%dT%H%M%S%f')}"
+        )
+        model_path = _ARTIFACT_DIR / f"{artifact_name}.pkl"
+        metadata_path = _ARTIFACT_DIR / f"{artifact_name}.json"
+        model_temp_path = model_path.with_suffix(".pkl.tmp")
+        metadata_temp_path = metadata_path.with_suffix(".json.tmp")
+
+        metadata = {
+            "model_version": model.model_version,
+            "horizon_days": horizon_days,
+            "feature_names": feature_names,
+            "metrics": metrics,
+            "model_file": model_path.name,
+            "model_class": type(model).__name__,
+            "trained_at": timestamp.isoformat(),
+        }
+
+        try:
+            with model_temp_path.open("wb") as model_file:
+                pickle.dump(model, model_file, protocol=pickle.HIGHEST_PROTOCOL)
+            with metadata_temp_path.open("w", encoding="utf-8") as metadata_file:
+                json.dump(metadata, metadata_file, indent=2, sort_keys=True)
+            model_temp_path.replace(model_path)
+            metadata_temp_path.replace(metadata_path)
+        finally:
+            model_temp_path.unlink(missing_ok=True)
+            metadata_temp_path.unlink(missing_ok=True)
+
+    def _load_latest_model_artifact(self, horizon_days: int) -> Any:
+        if not _ARTIFACT_DIR.is_dir():
+            raise RuntimeError(
+                f"Forecast model for horizon_days={horizon_days} is not trained "
+                "and no saved model artifacts were found."
+            )
+
+        candidates: List[tuple[str, Path, Dict[str, Any]]] = []
+        for metadata_path in _ARTIFACT_DIR.glob("forecast_*.json"):
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, TypeError):
+                continue
+            if metadata.get("horizon_days") == horizon_days:
+                candidates.append(
+                    (str(metadata.get("trained_at", "")), metadata_path, metadata)
+                )
+
+        for _, metadata_path, metadata in sorted(
+            candidates,
+            key=lambda item: item[0],
+            reverse=True,
+        ):
+            try:
+                model_path = _ARTIFACT_DIR / str(metadata["model_file"])
+                if model_path.parent.resolve() != _ARTIFACT_DIR.resolve():
+                    continue
+                with model_path.open("rb") as model_file:
+                    model = pickle.load(model_file)
+
+                saved_feature_names = list(metadata.get("feature_names", []))
+                if list(getattr(model, "feature_names", [])) != saved_feature_names:
+                    continue
+                if getattr(model, "model_version", None) != metadata.get(
+                    "model_version"
+                ):
+                    continue
+                if not getattr(model, "is_trained", False):
+                    continue
+                return model
+            except (OSError, KeyError, pickle.PickleError, EOFError, AttributeError):
+                continue
+
+        raise RuntimeError(
+            f"No valid saved forecast model found for horizon_days={horizon_days}. "
+            "Call POST /forecast/train once to create an artifact."
+        )
 
     def list_forecasts(
         self,
