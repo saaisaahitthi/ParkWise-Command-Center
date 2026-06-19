@@ -6,18 +6,93 @@ Enforcement Intelligence Score — query and rank hotspots by EIS.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import PaginationParams, db_session
 from app.models.analytics import EISScore
 from app.models.hotspot import Hotspot
-from app.schemas.analytics import EISScoreListResponse, EISScoreRead
+from app.services.eis_service import EISService
 
 router = APIRouter()
+
+
+class EISComponentBreakdown(BaseModel):
+    frequency_score: float = Field(ge=0, le=100)
+    recurrence_score: float = Field(ge=0, le=100)
+    density_score: float = Field(ge=0, le=100)
+    temporal_risk_score: float = Field(ge=0, le=100)
+    severity_norm: float = Field(ge=0, le=1)
+    exposure_score: float = Field(ge=0, le=100)
+    severity_multiplier: float
+
+
+class EISScoreRead(BaseModel):
+    id: int
+    hotspot_id: int
+    eis_score: float = Field(ge=0, le=100)
+    risk_category: str
+    rank: Optional[int]
+    computed_for_date: datetime
+    components: Optional[EISComponentBreakdown] = None
+    created_at: datetime
+
+    @classmethod
+    def from_orm_with_components(cls, obj) -> "EISScoreRead":
+        return cls(
+            id=obj.id,
+            hotspot_id=obj.hotspot_id,
+            eis_score=obj.eis_score,
+            risk_category=obj.risk_category,
+            rank=obj.rank,
+            computed_for_date=obj.computed_for_date,
+            components=EISComponentBreakdown(
+                frequency_score=obj.frequency_score,
+                recurrence_score=obj.recurrence_score,
+                density_score=obj.density_score,
+                temporal_risk_score=obj.temporal_risk_score,
+                severity_norm=obj.severity_norm,
+                exposure_score=obj.exposure_score,
+                severity_multiplier=obj.severity_multiplier,
+            ),
+            created_at=obj.created_at,
+        )
+
+
+class EISScoreListResponse(BaseModel):
+    total: int
+    items: list[EISScoreRead]
+
+
+class EISPipelineResponse(BaseModel):
+    pipeline_run_id: str
+    hotspots_processed: int
+    eis_scores_created: int
+    status: str
+
+
+@router.post(
+    "/run-pipeline",
+    response_model=EISPipelineResponse,
+    summary="Generate EIS scores for all hotspots",
+)
+def run_eis_pipeline(
+    db: Session = Depends(db_session),
+) -> EISPipelineResponse:
+    try:
+        result = EISService(db).run_pipeline()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"EIS pipeline failed: {exc}",
+        ) from exc
+    return EISPipelineResponse(**result)
 
 
 def _latest_eis_query(db: Session):
