@@ -17,7 +17,7 @@ class ForecastTrainRequest(BaseModel):
     horizon_days: int = Field(default=1, ge=1, le=7)
     hotspot_id: Optional[int] = None
     model_version: str = "forecast-v1"
-    min_history_per_hotspot: int = Field(default=4, ge=2, le=30)
+    min_history_per_hotspot: int = Field(default=4, ge=1, le=30)
 
 
 class ForecastGenerateRequest(BaseModel):
