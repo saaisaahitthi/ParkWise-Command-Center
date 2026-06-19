@@ -12,21 +12,31 @@ __pycache__/
 *.pyo
 *.pyd
 
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
 .venv/
 venv/
 env/
 
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+*.log
+logs/
 
 app/ml/artifacts/
 *.pkl
 *.joblib
 *.model
+*.bin
 
-*.log
+pytest-temp/
+openapi.json
+
 .DS_Store
 Thumbs.db
 
 fix_migration.py
+Pasted*.txt
+Pasted*.py

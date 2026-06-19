@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+import app.services.forecast_service as forecast_service_module
 from app.services.forecast_service import ForecastService, _MODEL_REGISTRY
 
 
@@ -70,6 +73,19 @@ def make_forecast():
     )
 
 
+@pytest.fixture(autouse=True)
+def isolated_model_artifacts(tmp_path, monkeypatch):
+    """Keep persistence tests isolated from application model artifacts."""
+    monkeypatch.setattr(
+        forecast_service_module,
+        "_ARTIFACT_DIR",
+        tmp_path / "artifacts",
+    )
+    _MODEL_REGISTRY.clear()
+    yield
+    _MODEL_REGISTRY.clear()
+
+
 def test_train_model_success():
     _MODEL_REGISTRY.clear()
 
@@ -85,17 +101,37 @@ def test_train_model_success():
     assert 1 in _MODEL_REGISTRY
 
 
-def test_generate_forecasts_requires_trained_model():
-    _MODEL_REGISTRY.clear()
-
+def test_generate_forecasts_loads_persisted_model_after_restart():
     db = MagicMock()
     service = ForecastService(db)
 
-    try:
-        service.generate_forecasts(horizon_days=1)
-        assert False
-    except RuntimeError:
-        assert True
+    with patch.object(
+        service.repository,
+        "get_historical_eis_scores",
+        return_value=make_scores(),
+    ):
+        service.train_model(horizon_days=1, model_version="forecast-v1")
+
+    _MODEL_REGISTRY.clear()
+    restarted_service = ForecastService(db)
+    with patch.object(
+        restarted_service.repository,
+        "get_historical_eis_scores",
+        return_value=make_scores(),
+    ), patch.object(
+        restarted_service.repository,
+        "delete_existing_forecasts",
+        return_value=0,
+    ), patch.object(
+        restarted_service.repository,
+        "bulk_create_forecasts",
+        return_value=[make_forecast()],
+    ):
+        result = restarted_service.generate_forecasts(horizon_days=1)
+
+    assert result["status"] == "generated"
+    assert result["forecasts_created"] == 1
+    assert 1 in _MODEL_REGISTRY
 
 
 def test_generate_forecasts_success():

@@ -15,6 +15,7 @@ Run with:  pytest tests/unit/test_temporal_api.py -v
 from __future__ import annotations
 
 from datetime import datetime
+from types import SimpleNamespace
 from typing import List
 from unittest.mock import MagicMock, patch
 
@@ -23,7 +24,6 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.api.deps import db_session
-from app.models.analytics import PeakWindow
 from app.services.temporal_service import TemporalRunResult
 
 
@@ -31,7 +31,7 @@ from app.services.temporal_service import TemporalRunResult
 # Helpers
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _make_peak_window(**kwargs) -> PeakWindow:
+def _make_peak_window(**kwargs) -> SimpleNamespace:
     defaults = dict(
         id=1,
         hotspot_id=1,
@@ -47,9 +47,7 @@ def _make_peak_window(**kwargs) -> PeakWindow:
         pipeline_run_id="run-test",
     )
     defaults.update(kwargs)
-    win = PeakWindow.__new__(PeakWindow)
-    win.__dict__.update(defaults)
-    return win
+    return SimpleNamespace(**defaults)
 
 
 def _make_run_result() -> TemporalRunResult:
@@ -109,18 +107,18 @@ class TestListPeakWindows:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestGetPeakWindow:
-    SVC_PATH = "app.api.v1.endpoints.temporal.TemporalService"
+    REPO_PATH = "app.repositories.temporal_repository.TemporalRepository"
 
     def test_existing_id_returns_200(self, client):
         win = _make_peak_window(id=5)
-        with patch(self.SVC_PATH) as MockSvc:
-            MockSvc.return_value.get_peak_window_by_id.return_value = win
+        with patch(self.REPO_PATH) as MockRepo:
+            MockRepo.return_value.get_by_id.return_value = win
             resp = client.get("/api/v1/temporal/peak-windows/5")
         assert resp.status_code == 200
 
     def test_missing_id_returns_404(self, client):
-        with patch(self.SVC_PATH) as MockSvc:
-            MockSvc.return_value.get_peak_window_by_id.return_value = None
+        with patch(self.REPO_PATH) as MockRepo:
+            MockRepo.return_value.get_by_id.return_value = None
             resp = client.get("/api/v1/temporal/peak-windows/9999")
         assert resp.status_code == 404
 
@@ -184,7 +182,7 @@ class TestHotspotWindows:
 
     def test_returns_200_for_known_hotspot(self, client):
         with patch(self.SVC_PATH) as MockSvc:
-            MockSvc.return_value.get_windows_for_hotspot.return_value = [_make_peak_window()]
+            MockSvc.return_value.get_peak_windows.return_value = [_make_peak_window()]
             resp = client.get("/api/v1/temporal/hotspots/1/windows")
         assert resp.status_code == 200
 
@@ -205,7 +203,7 @@ class TestHotspotRisk:
     def test_returns_risk_score(self, client):
         with patch(self.SVC_PATH) as MockSvc:
             MockSvc.return_value.get_temporal_risk_score.return_value = 0.72
-            resp = client.get("/api/v1/temporal/hotspots/1/risk")
+            resp = client.get("/api/v1/temporal/hotspots/1/risk-score")
         assert resp.status_code == 200
         body = resp.json()
         assert "temporal_risk_score" in body
@@ -226,7 +224,7 @@ class TestRunPipelineEndpoint:
                 "/api/v1/temporal/run-pipeline",
                 json={"truncate_existing": True, "min_window_violations": 5},
             )
-        assert resp.status_code == 200
+        assert resp.status_code == 202
         body = resp.json()
         assert "pipeline_run_id" in body
         assert "n_windows_written" in body

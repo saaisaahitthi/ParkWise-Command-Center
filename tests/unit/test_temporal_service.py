@@ -24,12 +24,15 @@ import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.base import Base
 from app.models.analytics import PeakWindow
 from app.services.temporal_service import (
     TemporalRunResult,
     TemporalService,
     _ViolationRecord,
+)
+from tests.sqlite_helpers import (
+    create_temporal_test_tables,
+    drop_temporal_test_tables,
 )
 
 
@@ -51,14 +54,20 @@ def db():
         cursor.execute("PRAGMA foreign_keys=OFF")
         cursor.close()
 
-    Base.metadata.create_all(engine)
+    create_temporal_test_tables(engine)
     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
     session = SessionLocal()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(engine)
+        drop_temporal_test_tables(engine)
+
+
+@pytest.fixture(autouse=True)
+def allow_synthetic_temporal_data(monkeypatch):
+    """Bypass the production minimum-row guard only for synthetic unit data."""
+    monkeypatch.setattr("app.services.temporal_service._MIN_VIOLATIONS_ABSOLUTE", 0)
 
 
 def _make_records(hotspot_id: int, hour: int, day: int, count: int) -> List[_ViolationRecord]:
@@ -136,7 +145,7 @@ class TestTemporalRunResult:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestRunPipeline:
-    TARGET = "app.services.temporal_service.TemporalService._load_violation_records"
+    TARGET = "app.services.temporal_service.TemporalService._load_records"
 
     @patch(TARGET)
     def test_returns_temporal_run_result(self, mock_load, db):
@@ -182,12 +191,13 @@ class TestRunPipeline:
     def test_empty_data_raises_or_zero(self, mock_load, db):
         """Empty input → InsufficientDataForClusteringError OR zero windows."""
         mock_load.return_value = []
-        from app.core.exceptions import InsufficientDataForClusteringError
-        try:
-            result = TemporalService(db).run_pipeline(truncate_existing=True, min_window_violations=5)
-            assert result.n_windows_written == 0
-        except InsufficientDataForClusteringError:
-            pass
+        from app.core.exceptions import PipelineError
+
+        with pytest.raises(PipelineError):
+            TemporalService(db).run_pipeline(
+                truncate_existing=True,
+                min_window_violations=5,
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

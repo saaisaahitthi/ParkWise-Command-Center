@@ -21,9 +21,12 @@ import pytest
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.base import Base
 from app.models.analytics import PeakWindow
 from app.repositories.temporal_repository import TemporalRepository
+from tests.sqlite_helpers import (
+    create_temporal_test_tables,
+    drop_temporal_test_tables,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -42,21 +45,21 @@ def db() -> Session:
         connect_args={"check_same_thread": False},
     )
 
-    # Enable FK enforcement on every new connection
+    # Only PeakWindow is needed here; referenced PostGIS tables are omitted.
     @event.listens_for(engine, "connect")
     def _fk_pragma(dbapi_conn, _record):
         cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA foreign_keys=OFF")
         cursor.close()
 
-    Base.metadata.create_all(engine)
+    create_temporal_test_tables(engine)
     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
     session = SessionLocal()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(engine)
+        drop_temporal_test_tables(engine)
 
 
 @pytest.fixture
