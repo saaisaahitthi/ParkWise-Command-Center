@@ -2,10 +2,22 @@
 .env.*
 !.env.example
 
+backend/.env
+backend/.env.*
+!backend/.env.example
+
 data/
+backend/data/
 *.csv
 *.xlsx
 *.xls
+
+logs/
+backend/logs/
+*.log
+
+models/
+backend/models/
 
 __pycache__/
 *.pyc
@@ -21,18 +33,30 @@ htmlcov/
 .venv/
 venv/
 env/
+backend/.venv/
+backend/venv/
+backend/env/
 
-*.log
-logs/
-
-app/ml/artifacts/
+backend/app/ml/artifacts/
 *.pkl
 *.joblib
 *.model
 *.bin
 
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+build/
+frontend/build/
+.vite/
+frontend/.vite/
+
 pytest-temp/
 openapi.json
+
+.agents/
+.codex/
 
 .DS_Store
 Thumbs.db
