@@ -9,7 +9,6 @@ const Temporal   = lazy(() => import("@/pages/Temporal"));
 const Forecast   = lazy(() => import("@/pages/Forecast"));
 const Officers   = lazy(() => import("@/pages/Officers"));
 const Patrol     = lazy(() => import("@/pages/Patrol"));
-const Simulator  = lazy(() => import("@/pages/Simulator"));
 const Landing    = lazy(() => import("@/pages/Landing"));
 const NotFound   = lazy(() => import("@/pages/NotFound"));
 
@@ -41,7 +40,6 @@ export const router = createBrowserRouter([
       { path: "forecast",   element: <Lazy><Forecast /></Lazy> },
       { path: "officers",   element: <Lazy><Officers /></Lazy> },
       { path: "patrol",     element: <Lazy><Patrol /></Lazy> },
-      { path: "simulator",  element: <Lazy><Simulator /></Lazy> },
       { path: "landing",   element: <Lazy><Landing /></Lazy> },
 
       // Catch-all

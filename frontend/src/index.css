@@ -168,6 +168,46 @@ body {
   color: #ecfeff !important;
 }
 
+.hotspot-map-shell .leaflet-top.leaflet-right {
+  margin-top: 12px;
+  margin-right: 12px;
+}
+
+.hotspot-map-shell .leaflet-control-zoom {
+  overflow: hidden;
+  border: 1px solid rgba(103, 232, 249, 0.22) !important;
+  border-radius: 13px !important;
+  background: rgba(7, 15, 24, 0.92) !important;
+  box-shadow: 0 16px 40px -22px rgba(34, 211, 238, 0.95) !important;
+  backdrop-filter: blur(14px);
+}
+
+.hotspot-map-shell .leaflet-control-zoom a {
+  width: 34px !important;
+  height: 34px !important;
+  line-height: 32px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.11) !important;
+  background: rgba(15, 29, 41, 0.94) !important;
+  color: #a5f3fc !important;
+  font-size: 18px !important;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.hotspot-map-shell .leaflet-control-zoom a:last-child {
+  border-bottom: 0 !important;
+}
+
+.hotspot-map-shell .leaflet-control-zoom a:hover,
+.hotspot-map-shell .leaflet-control-zoom a:focus {
+  background: rgba(34, 211, 238, 0.15) !important;
+  color: #ecfeff !important;
+}
+
+.hotspot-map-shell > div > div:last-child {
+  min-height: 500px;
+}
+
 @keyframes map-pulse {
   0% {
     transform: translate(-50%, -50%) scale(0.6);

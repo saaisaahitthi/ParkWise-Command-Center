@@ -68,11 +68,10 @@ export const landingDemoData: LandingOverviewData = {
   navigation: [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Hotspots", path: "/hotspots" },
-    { label: "EIS", path: "/temporal" },
+    { label: "Risk Score", path: "/temporal" },
     { label: "Forecast", path: "/forecast" },
     { label: "Allocation", path: "/officers" },
     { label: "Patrol", path: "/patrol" },
-    { label: "Simulator", path: "/simulator" },
   ],
   hero: {
     eyebrow: "Bengaluru Parking Intelligence",

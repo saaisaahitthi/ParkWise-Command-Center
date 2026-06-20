@@ -92,7 +92,7 @@ export default function DashboardPage() {
       accent: "bg-[#10B981]/10 text-[#10B981]",
     },
     {
-      label: "Avg EIS Score",
+      label: "Avg Risk Score",
       value: executive_summary.avg_risk_score,
       delta: "",
       description: dashboardMetricDescriptions.averageRiskScore,
@@ -129,7 +129,7 @@ export default function DashboardPage() {
         {
           id: `popup-${selectedHotspot.hotspot_id}`,
           title: getLocationDisplayName(selectedHotspot.name),
-          description: `EIS: ${selectedHotspot.latest_eis} • Forecast EIS: ${selectedHotspot.forecasted_eis} • Risk: ${selectedHotspot.risk_category} • Officers: ${selectedHotspot.officers_allocated}`,
+          description: `Risk Score: ${selectedHotspot.latest_eis} • Forecast Risk: ${selectedHotspot.forecasted_eis} • Risk: ${selectedHotspot.risk_category} • Officers: ${selectedHotspot.officers_allocated}`,
           position: latLngToXY(selectedHotspot.latitude, selectedHotspot.longitude),
           latLng: [selectedHotspot.latitude, selectedHotspot.longitude] as [number, number],
           open: true,

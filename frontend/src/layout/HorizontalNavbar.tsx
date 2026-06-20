@@ -4,11 +4,10 @@ import { Link, NavLink } from "react-router-dom";
 const navigation = [
   { label: "Dashboard", path: "/dashboard" },
   { label: "Hotspots", path: "/hotspots" },
-  { label: "EIS", path: "/temporal" },
+  { label: "Risk Score", path: "/temporal" },
   { label: "Forecast", path: "/forecast" },
   { label: "Allocation", path: "/officers" },
   { label: "Patrol", path: "/patrol" },
-  { label: "Simulator", path: "/simulator" },
 ];
 
 export function HorizontalNavbar() {

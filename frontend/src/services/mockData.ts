@@ -251,20 +251,8 @@ export const mockRoutingLatest = {
   ],
 };
 
-export const mockSimulatorPresets = [
-  { id: "festival", name: "Festival Season Surge", officers: 28, top_n_hotspots: 4 },
-  { id: "monsoon", name: "Heavy Monsoon Flow", officers: 22, top_n_hotspots: 3 },
-  { id: "vip", name: "VIP Transit Restrictions", officers: 16, top_n_hotspots: 2 },
-];
-
-export const mockSimulatorBaseline = {
-  total_officers: 20,
-  top_n_hotspots: 4,
-  baseline_coverage: 62.5,
-  baseline_eis_avg: 77.5,
-};
-
-export function getMockResponse<T>(url: string, _params?: any): T {
+export function getMockResponse<T>(url: string, params?: unknown): T {
+  void params;
   const cleanUrl = url.replace(/^\/?api\/v1\/?/, "").replace(/^\/?/, "").split("?")[0];
 
   if (cleanUrl === "dashboard/full") {
@@ -288,34 +276,12 @@ export function getMockResponse<T>(url: string, _params?: any): T {
   if (cleanUrl === "routing/latest" || cleanUrl === "routing/summary" || cleanUrl === "patrol/") {
     return mockRoutingLatest as unknown as T;
   }
-  if (cleanUrl === "simulator/presets") {
-    return mockSimulatorPresets as unknown as T;
-  }
-  if (cleanUrl === "simulator/baseline") {
-    return mockSimulatorBaseline as unknown as T;
-  }
-
   throw new Error(`Mock endpoint not found for URL: ${url}`);
 }
 
-export function getMockPostResponse<T>(url: string, body?: any): T {
+export function getMockPostResponse<T>(url: string, body?: unknown): T {
+  void body;
   const cleanUrl = url.replace(/^\/?api\/v1\/?/, "").replace(/^\/?/, "").split("?")[0];
-
-  if (cleanUrl === "simulator/run") {
-    const total_officers = body?.total_officers ?? 20;
-    const top_n_hotspots = body?.top_n_hotspots ?? 4;
-    // Calculate simple dynamic output based on inputs
-    const coverage = Math.min(98.5, 50 + (total_officers * 1.5) - (top_n_hotspots * 2));
-    const avg_eis = Math.max(45, 95 - (total_officers * 1.2));
-    return {
-      simulation_id: "sim-" + Math.floor(Math.random() * 100000),
-      simulated_coverage: Number(coverage.toFixed(1)),
-      simulated_eis_avg: Number(avg_eis.toFixed(1)),
-      recommendation: total_officers < 15 
-        ? "Deploy more officers to reach at least 70% coverage." 
-        : "Current deployment is optimal for Jabalpur railway transit routes.",
-    } as unknown as T;
-  }
 
   if (cleanUrl === "allocation/compute") {
     return {
