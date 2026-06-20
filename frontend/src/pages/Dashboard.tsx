@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   MapPin,
@@ -13,7 +12,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { RiskDonutChart } from "@/components/charts/RiskDonutChart";
 import { MapMyIndiaWrapper } from "@/components/maps/MapMyIndiaWrapper";
 import { PageHeader } from "@/layout/PageHeader";
-import { apiGet } from "@/lib/api";
+import { useDashboard } from "@/hooks/useDashboard";
 import {
   dashboardMetricDescriptions,
   getLocationDisplayName,
@@ -32,14 +31,18 @@ function latLngToXY(lat: number, lng: number) {
   return { x, y };
 }
 
+function mapRiskLevel(
+  risk: string
+): "Critical" | "High" | "Medium" | "Low" {
+  return risk === "Critical" || risk === "High" || risk === "Medium"
+    ? risk
+    : "Low";
+}
+
 export default function DashboardPage() {
   const [selectedMarkerId, setSelectedMarkerId] = useState<string>("");
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["dashboard-full"],
-    queryFn: () => apiGet<any>("/dashboard/full"),
-    refetchInterval: 10000,
-  });
+  const { data, isLoading, error } = useDashboard();
 
   if (isLoading) {
     return (
@@ -64,44 +67,30 @@ export default function DashboardPage() {
     );
   }
 
-  const { executive_summary, risk_distribution, hotspot_map } = data;
-
-  const metrics = [
-    {
-      label: "Violations",
-      value: executive_summary.total_violations,
-      delta: `+${executive_summary.total_violations_delta}%`,
+  const metricPresentation = {
+    Violations: {
       description: dashboardMetricDescriptions.violations,
       icon: AlertTriangle,
       accent: "bg-[#F97316]/10 text-[#F97316]",
     },
-    {
-      label: "High Risk Zones",
-      value: executive_summary.high_risk_zones,
-      delta: `+${executive_summary.high_risk_zones_delta}%`,
+    "High Risk Zones": {
       description: dashboardMetricDescriptions.highRiskZones,
       icon: MapPin,
       accent: "bg-[#38BDF8]/10 text-[#38BDF8]",
     },
-    {
-      label: "Officers on Duty",
-      value: executive_summary.officers_on_duty,
-      delta: "",
+    "Officers on Duty": {
       description: dashboardMetricDescriptions.officersOnDuty,
       icon: Users,
       accent: "bg-[#10B981]/10 text-[#10B981]",
     },
-    {
-      label: "Avg Risk Score",
-      value: executive_summary.avg_risk_score,
-      delta: "",
+    "Average Risk Score": {
       description: dashboardMetricDescriptions.averageRiskScore,
       icon: ShieldCheck,
       accent: "bg-[#A855F7]/10 text-[#A855F7]",
     },
-  ];
+  } as const;
 
-  const markers = hotspot_map.map((item: any) => {
+  const markers = data.hotspotMap.map((item) => {
     const { x, y } = latLngToXY(item.latitude, item.longitude);
     const color = item.risk_category === "Critical" 
       ? "#EF4444" 
@@ -111,19 +100,21 @@ export default function DashboardPage() {
           ? "#3B82F6" 
           : "#10B981";
     return {
-      id: item.hotspot_id,
+      id: String(item.hotspot_id),
       lat: item.latitude,
       lng: item.longitude,
       x,
       y,
       label: getLocationDisplayName(item.name),
-      risk: item.risk_category,
+      risk: mapRiskLevel(item.risk_category),
       color,
-      selected: item.hotspot_id === selectedMarkerId,
+      selected: String(item.hotspot_id) === selectedMarkerId,
     };
   });
 
-  const selectedHotspot = hotspot_map.find((h: any) => h.hotspot_id === selectedMarkerId);
+  const selectedHotspot = data.hotspotMap.find(
+    (hotspot) => String(hotspot.hotspot_id) === selectedMarkerId
+  );
   const popups = selectedHotspot
     ? [
         {
@@ -149,17 +140,27 @@ export default function DashboardPage() {
 
       {/* KPIs Row */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <MetricCard
-            key={metric.label}
-            label={metric.label}
-            value={typeof metric.value === "number" ? formatNumber(metric.value) : metric.value}
-            delta={metric.delta}
-            description={metric.description}
-            icon={metric.icon}
-            accent={metric.accent}
-          />
-        ))}
+        {data.metrics.map((metric) => {
+          const presentation =
+            metricPresentation[
+              metric.label as keyof typeof metricPresentation
+            ] ?? metricPresentation["Average Risk Score"];
+          return (
+            <MetricCard
+              key={metric.label}
+              label={metric.label}
+              value={
+                typeof metric.value === "number"
+                  ? formatNumber(metric.value)
+                  : metric.value
+              }
+              delta={metric.delta}
+              description={presentation.description}
+              icon={presentation.icon}
+              accent={presentation.accent}
+            />
+          );
+        })}
       </div>
 
       {/* Main Content Layout */}
@@ -196,7 +197,7 @@ export default function DashboardPage() {
               </div>
               <ShieldCheck className="h-4 w-4 text-cyan-300/70" />
             </div>
-            <RiskDonutChart data={risk_distribution} />
+            <RiskDonutChart data={data.riskChart} />
           </Card>
 
           <Card className="overflow-hidden rounded-[22px] border-white/[0.07] bg-[linear-gradient(145deg,rgba(14,27,39,0.92),rgba(8,17,27,0.8))] p-0">
@@ -212,13 +213,15 @@ export default function DashboardPage() {
               <MapPin className="h-4 w-4 text-rose-300/80" />
             </div>
             <div className="max-h-[220px] space-y-1 overflow-y-auto p-2">
-              {hotspot_map.slice(0, 4).map((hotspot: any) => (
+              {data.hotspotMap.slice(0, 4).map((hotspot) => (
                 <button
                   type="button"
                   key={hotspot.hotspot_id}
-                  onClick={() => setSelectedMarkerId(hotspot.hotspot_id)}
+                  onClick={() =>
+                    setSelectedMarkerId(String(hotspot.hotspot_id))
+                  }
                   className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition duration-200 hover:border-white/[0.08] hover:bg-white/[0.04] ${
-                    hotspot.hotspot_id === selectedMarkerId
+                    String(hotspot.hotspot_id) === selectedMarkerId
                       ? "border-cyan-300/12 bg-cyan-300/[0.06]"
                       : "border-transparent"
                   }`}

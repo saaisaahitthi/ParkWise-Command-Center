@@ -1,9 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchForecast } from "@/services/forecast";
+import { fetchForecastSummary, fetchTopForecasts } from "@/services/forecast";
 
-export function useForecast(zoneId?: string, horizonDays = 30) {
+export function useForecastSummary() {
   return useQuery({
-    queryKey: ["forecast", zoneId, horizonDays],
-    queryFn: () => fetchForecast({ zone_id: zoneId, horizon_days: horizonDays }),
+    queryKey: ["forecast-summary"],
+    queryFn: fetchForecastSummary,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useTopForecasts() {
+  return useQuery({
+    queryKey: ["forecast-top"],
+    queryFn: fetchTopForecasts,
+    refetchInterval: 10_000,
   });
 }

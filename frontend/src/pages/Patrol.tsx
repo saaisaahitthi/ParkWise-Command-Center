@@ -16,7 +16,10 @@ import {
 import { Card } from "@/components/ui/card";
 import { MapMyIndiaWrapper } from "@/components/maps/MapMyIndiaWrapper";
 import { PageHeader } from "@/layout/PageHeader";
-import { apiGet, apiPost } from "@/lib/api";
+import {
+  fetchLatestPatrolRoute,
+  generatePatrolRoute,
+} from "@/services/patrol";
 import { patrolRouteInsight } from "@/data/patrolPresentationData";
 import { getLocationDisplayName } from "@/data/dashboardPresentationData";
 
@@ -32,24 +35,27 @@ function latLngToXY(lat: number, lng: number) {
   return { x, y };
 }
 
+function mapRiskLevel(
+  risk: string
+): "Critical" | "High" | "Medium" | "Low" {
+  return risk === "Critical" || risk === "High" || risk === "Medium"
+    ? risk
+    : "Low";
+}
+
 export default function PatrolPage() {
   const [routed, setRouted] = useState(false);
 
   // Fetch latest routing / patrol details
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["routing-latest"],
-    queryFn: () => apiGet<any>("/routing/latest"),
+    queryFn: fetchLatestPatrolRoute,
     refetchInterval: 10000,
   });
 
   // Recompute route geometry mutation
   const generateRouteMutation = useMutation({
-    mutationFn: () =>
-      apiPost<any>("/routing/generate", {
-        route_date: new Date().toISOString().split("T")[0],
-        max_routes: 4,
-        max_stops_per_route: 10,
-      }),
+    mutationFn: generatePatrolRoute,
     onSuccess: () => {
       setRouted(true);
       refetch();
@@ -90,7 +96,7 @@ export default function PatrolPage() {
   } = data;
 
   // Convert geometry coordinates for visualization
-  const points = route_geometry.map((pt: any) => latLngToXY(pt.lat, pt.lng));
+  const points = route_geometry.map((pt) => latLngToXY(pt.lat, pt.lng));
 
   const polylines = [
     {
@@ -102,20 +108,18 @@ export default function PatrolPage() {
   ];
 
   // Plot stops as markers
-  const markers = stop_sequence.map((stop: any) => {
-    // Cross-reference coordinate from geometry list (fallback to center)
-    const geom = route_geometry[stop.sequence - 1] || route_geometry[0];
-    const { x, y } = latLngToXY(geom.lat, geom.lng);
+  const markers = stop_sequence.map((stop) => {
+    const { x, y } = latLngToXY(stop.lat, stop.lng);
     const color = stop.risk === "Critical" ? "#EF4444" : stop.risk === "High" ? "#F59E0B" : "#3B82F6";
 
     return {
       id: `stop-${stop.sequence}`,
-      lat: geom.lat,
-      lng: geom.lng,
+      lat: stop.lat,
+      lng: stop.lng,
       x,
       y,
       label: `${stop.sequence}. ${stop.name}`,
-      risk: stop.risk,
+      risk: mapRiskLevel(stop.risk),
       color,
     };
   });
@@ -260,7 +264,7 @@ export default function PatrolPage() {
 
             <div className="max-h-[300px] overflow-y-auto p-3">
               <div className="relative space-y-2 before:absolute before:bottom-5 before:left-[18px] before:top-5 before:w-px before:bg-gradient-to-b before:from-cyan-300/35 before:via-slate-700/50 before:to-transparent">
-                {stop_sequence.map((stop: any) => (
+                {stop_sequence.map((stop) => (
                   <div
                     key={stop.sequence}
                     className="group relative grid grid-cols-[38px_1fr] gap-2.5 rounded-2xl border border-transparent p-2 transition duration-300 hover:-translate-y-0.5 hover:border-white/[0.07] hover:bg-white/[0.035]"

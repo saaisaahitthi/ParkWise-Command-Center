@@ -10,7 +10,10 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/layout/PageHeader";
 import { Card } from "@/components/ui/card";
-import { apiGet, apiPost } from "@/lib/api";
+import {
+  computeAllocation,
+  fetchLatestAllocation,
+} from "@/services/officers";
 import { getLocationDisplayName } from "@/data/dashboardPresentationData";
 
 export default function OfficersPage() {
@@ -21,14 +24,14 @@ export default function OfficersPage() {
   // Fetch latest allocation data
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["allocation-latest"],
-    queryFn: () => apiGet<any>("/allocation/latest"),
+    queryFn: fetchLatestAllocation,
     refetchInterval: 10000,
   });
 
   // Recompute allocation mutation
   const computeMutation = useMutation({
     mutationFn: () =>
-      apiPost<any>("/allocation/compute", {
+      computeAllocation({
         total_officers: totalOfficersInput,
         top_n_hotspots: topNHotspotsInput,
       }),
@@ -216,7 +219,7 @@ export default function OfficersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.055] text-sm text-slate-300">
-                {allocations.map((alloc: any) => (
+                {allocations.map((alloc) => (
                   <tr
                     key={alloc.hotspot_name}
                     className="transition duration-200 hover:bg-cyan-300/[0.035]"

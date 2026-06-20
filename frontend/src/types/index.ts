@@ -1,9 +1,13 @@
-// ── Shared API wrapper ──
+// ── Shared API wrapper (optional legacy envelope) ──
 export interface ApiResponse<T> {
   data: T;
   message?: string;
   status: "success" | "error";
 }
+
+export type { RiskChartSegment, DashboardView, ForecastSummaryView } from "./views";
+export type * from "./backend";
+export type * from "./views";
 
 export interface PaginatedResponse<T> {
   items: T[];

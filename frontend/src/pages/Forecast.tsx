@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CalendarDays,
@@ -11,29 +11,30 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/layout/PageHeader";
 import { Card } from "@/components/ui/card";
-import { apiGet, apiPost } from "@/lib/api";
+import {
+  useForecastSummary,
+  useTopForecasts,
+} from "@/hooks/useForecast";
+import { generateForecasts } from "@/services/forecast";
 import { getLocationDisplayName } from "@/data/dashboardPresentationData";
 
 export default function ForecastPage() {
   const [recomputed, setRecomputed] = useState(false);
 
-  // Fetch summary KPIs
-  const { data: summary, isLoading: isSummaryLoading, error: summaryError } = useQuery({
-    queryKey: ["forecast-summary"],
-    queryFn: () => apiGet<any>("/forecast/summary"),
-    refetchInterval: 10000,
-  });
-
-  // Fetch top predictions
-  const { data: topPredictions = [], isLoading: isTopLoading, error: topError } = useQuery({
-    queryKey: ["forecast-top"],
-    queryFn: () => apiGet<any[]>("/forecast/top"),
-    refetchInterval: 10000,
-  });
+  const {
+    data: summary,
+    isLoading: isSummaryLoading,
+    error: summaryError,
+  } = useForecastSummary();
+  const {
+    data: topPredictions = [],
+    isLoading: isTopLoading,
+    error: topError,
+  } = useTopForecasts();
 
   // Mutation to recompute forecast
   const recomputeMutation = useMutation({
-    mutationFn: () => apiPost<any>("/forecast/generate"),
+    mutationFn: generateForecasts,
     onSuccess: () => {
       setRecomputed(true);
       setTimeout(() => setRecomputed(false), 3000);
@@ -92,19 +93,19 @@ export default function ForecastPage() {
         {[
           {
             label: "Forecast Horizon",
-            value: summary?.forecast_horizon ?? "—",
+            value: summary?.forecastHorizonLabel ?? "—",
             icon: CalendarDays,
             tone: "text-cyan-200",
           },
           {
             label: "High-Risk Clusters",
-            value: summary?.predicted_high_risk_hotspots ?? "—",
+            value: summary?.predictedHighRiskHotspots ?? "—",
             icon: ShieldAlert,
             tone: "text-amber-200",
           },
           {
             label: "Average Forecast Risk Score",
-            value: summary?.avg_predicted_eis?.toFixed(1) ?? "—",
+            value: summary?.avgPredictedEis.toFixed(1) ?? "—",
             icon: Gauge,
             tone: "text-indigo-200",
           },
@@ -163,7 +164,7 @@ export default function ForecastPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.055] text-sm text-slate-300">
-              {topPredictions.map((pred: any) => (
+              {topPredictions.map((pred) => (
                 <tr
                   key={pred.hotspot_id}
                   className="transition duration-200 hover:bg-cyan-300/[0.035]"
@@ -177,7 +178,7 @@ export default function ForecastPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-center font-mono text-xs text-slate-400">
-                    {pred.current_eis.toFixed(1)}
+                    {pred.current_eis?.toFixed(1) ?? "—"}
                   </td>
                   <td className="px-4 py-3.5 text-center">
                     <span className="inline-flex min-w-14 justify-center rounded-lg border border-cyan-300/15 bg-cyan-300/[0.07] px-2 py-1 font-mono text-sm font-bold text-cyan-200">

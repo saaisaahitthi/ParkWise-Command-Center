@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ShieldCheck,
@@ -7,24 +6,10 @@ import {
   Target,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { apiGet } from "@/lib/api";
+import { useEisScores } from "@/hooks/useTemporal";
 import { PageHeader } from "@/layout/PageHeader";
 
-interface RiskScoreRecord {
-  hotspot_id: string;
-  rank: number;
-  eis_score: number;
-  risk_category: string;
-  frequency_score: number;
-  recurrence_score: number;
-  density_score: number;
-  temporal_risk_score: number;
-  severity_norm: number;
-  exposure_score: number;
-  severity_multiplier: number;
-}
-
-function formatHotspotId(hotspotId: string) {
+function formatHotspotId(hotspotId: string | number) {
   return String(hotspotId)
     .replace("hotspot-", "")
     .toUpperCase()
@@ -73,13 +58,11 @@ function ScoreBar({
 }
 
 export default function TemporalPage() {
-  const [selectedHotspotId, setSelectedHotspotId] = useState("");
+  const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(
+    null
+  );
 
-  const { data = [], isLoading, error } = useQuery({
-    queryKey: ["eis-scores"],
-    queryFn: () => apiGet<RiskScoreRecord[]>("/eis/scores"),
-    refetchInterval: 10000,
-  });
+  const { data = [], isLoading, error } = useEisScores();
 
   if (isLoading) {
     return (
@@ -213,7 +196,7 @@ export default function TemporalPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3.5 font-medium text-slate-200">
-                          {formatHotspotId(item.hotspot_id)}
+                          {item.hotspot_label || formatHotspotId(item.hotspot_id)}
                         </td>
                         <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-cyan-200">
                           {item.eis_score.toFixed(1)}
@@ -258,7 +241,8 @@ export default function TemporalPage() {
               <div className="mt-2 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-display text-xl font-bold tracking-tight text-white">
-                    {formatHotspotId(selectedScore.hotspot_id)}
+                    {selectedScore.hotspot_label ||
+                      formatHotspotId(selectedScore.hotspot_id)}
                   </h2>
                   <p className="mt-1 text-[10px] text-slate-500">
                     Rank #{selectedScore.rank} in current priority order
