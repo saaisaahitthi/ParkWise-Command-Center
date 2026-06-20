@@ -45,9 +45,9 @@ export default function DashboardPage() {
     return (
       <div className="rounded-3xl border border-red-900 bg-red-950/20 p-8 text-center text-red-300">
         <AlertTriangle className="mx-auto h-12 w-12 mb-3 text-red-500 animate-pulse" />
-        <h3 className="text-lg font-semibold text-white">Data Stream Disconnected</h3>
+        <h3 className="text-lg font-semibold text-white">Dashboard temporarily unavailable</h3>
         <p className="mt-2 text-sm max-w-md mx-auto text-slate-400">
-          Unable to fetch dashboard metrics. Please verify that the local backend service at <code className="text-red-200">http://127.0.0.1:8000/api/v1</code> is running, or toggle the header mode to **Mock Simulation**.
+          We could not load the latest command-center metrics. Please try again shortly.
         </p>
       </div>
     );
@@ -142,7 +142,7 @@ export default function DashboardPage() {
       <div className="grid gap-6 xl:grid-cols-[1.8fr_0.9fr]">
         {/* Map */}
         <MapMyIndiaWrapper
-          title="Command Center Map - Jabalpur"
+          title="Command Center Map - Bengaluru"
           subtitle="Interactive visual representation of risk zones and patrol areas"
           markers={markers}
           popups={popups}

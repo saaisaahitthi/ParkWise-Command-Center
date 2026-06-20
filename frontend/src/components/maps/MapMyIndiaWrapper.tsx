@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
+import { cn } from "@/lib/utils";
 
 export interface MapMarkerItem {
   id: string;
@@ -43,6 +44,7 @@ export interface MapMyIndiaWrapperProps {
   popups?: MapPopupItem[];
   legendItems?: MapLegendItem[];
   onMarkerClick?: (marker: MapMarkerItem) => void;
+  variant?: "default" | "patrol";
 }
 
 export function MapMyIndiaWrapper({
@@ -53,6 +55,7 @@ export function MapMyIndiaWrapper({
   popups = [],
   legendItems = [],
   onMarkerClick,
+  variant = "default",
 }: MapMyIndiaWrapperProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -222,20 +225,75 @@ export function MapMyIndiaWrapper({
   }, [markers, polylines, popups]);
 
   return (
-    <div className="rounded-[32px] border border-[var(--color-card-border)] bg-[var(--color-card-bg)] shadow-[0_20px_60px_-40px_rgba(0,0,0,0.65)]">
-      <div className="border-b border-[var(--color-card-border)] p-5 flex items-center justify-between">
-        <div>
-          {title ? <h3 className="text-lg font-semibold text-white">{title}</h3> : null}
-          {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
+    <div
+      className={cn(
+        "border border-[var(--color-card-border)] bg-[var(--color-card-bg)] shadow-[0_20px_60px_-40px_rgba(0,0,0,0.65)]",
+        variant === "patrol"
+          ? "overflow-hidden rounded-[28px]"
+          : "rounded-[32px]"
+      )}
+    >
+      <div
+        className={cn(
+          "border-b border-[var(--color-card-border)] p-5",
+          variant === "patrol"
+            ? "flex flex-col gap-4 bg-[linear-gradient(120deg,rgba(15,29,41,0.9),rgba(8,17,27,0.7))] sm:flex-row sm:items-center sm:justify-between"
+            : "flex items-center justify-between"
+        )}
+      >
+        <div className="min-w-0">
+          {title ? (
+            <h3
+              className={cn(
+                "text-lg font-semibold text-white",
+                variant === "patrol" && "tracking-tight"
+              )}
+            >
+              {title}
+            </h3>
+          ) : null}
+          {subtitle ? (
+            <p
+              className={cn(
+                "mt-1 text-sm text-slate-400",
+                variant === "patrol" && "max-w-2xl leading-5"
+              )}
+            >
+              {subtitle}
+            </p>
+          ) : null}
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 text-xs font-semibold text-slate-400 bg-slate-900/40 px-3.5 py-2 rounded-2xl border border-slate-800">
+        <div
+          className={cn(
+            "flex items-center text-xs font-semibold text-slate-400",
+            variant === "patrol"
+              ? "w-fit flex-wrap gap-1 rounded-2xl border border-white/[0.07] bg-black/20 p-1.5 shadow-inner shadow-black/20"
+              : "gap-4 rounded-2xl border border-slate-800 bg-slate-900/40 px-3.5 py-2"
+          )}
+        >
           {legendItems.map((legend) => (
-            <div key={legend.label} className="flex items-center gap-1.5">
+            <div
+              key={legend.label}
+              className={cn(
+                "flex items-center",
+                variant === "patrol"
+                  ? "gap-2 rounded-xl border border-transparent bg-white/[0.035] px-3 py-2 transition hover:border-cyan-300/10 hover:bg-cyan-300/[0.06] hover:text-slate-200"
+                  : "gap-1.5"
+              )}
+            >
               <span
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: legend.color }}
+                className={cn(
+                  "rounded-full",
+                  variant === "patrol"
+                    ? "h-2.5 w-2.5 border border-white/20 shadow-[0_0_10px_currentColor]"
+                    : "h-2 w-2"
+                )}
+                style={{
+                  backgroundColor: legend.color,
+                  ...(variant === "patrol" ? { color: legend.color } : {}),
+                }}
               />
               <span>{legend.label}</span>
             </div>
@@ -243,7 +301,14 @@ export function MapMyIndiaWrapper({
         </div>
       </div>
 
-      <div className="relative min-h-[420px] rounded-b-[32px] overflow-hidden bg-slate-950/80">
+      <div
+        className={cn(
+          "relative overflow-hidden bg-slate-950/80",
+          variant === "patrol"
+            ? "min-h-[440px] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.04)]"
+            : "min-h-[420px] rounded-b-[32px]"
+        )}
+      >
         <div
           ref={mapContainerRef}
           className="absolute inset-0 h-full w-full z-10"

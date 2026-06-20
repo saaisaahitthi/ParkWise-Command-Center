@@ -110,7 +110,7 @@ export default function HotspotsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Hotspot Intelligence"
-        description="Jabalpur spatial parking violation density map and database records."
+        description="Bengaluru parking violation density, priority zones, and hotspot records."
       />
 
       <div className="grid gap-6 xl:grid-cols-[280px_1fr]">

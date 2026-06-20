@@ -13,80 +13,75 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen flex-col transition-all duration-300 ease-in-out",
-        "border-r border-[var(--color-sidebar-border)]",
-        "bg-[var(--color-sidebar-bg)]"
+        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r transition-all duration-300 ease-in-out",
+        "border-white/[0.065] bg-[linear-gradient(180deg,#0c1721_0%,#081019_100%)]",
+        "shadow-[20px_0_55px_-38px_rgba(34,211,238,0.4)]"
       )}
-      style={{ width: sidebarCollapsed ? "var(--sidebar-collapsed-width)" : "var(--sidebar-width)" }}
+      style={{
+        width: sidebarCollapsed
+          ? "var(--sidebar-collapsed-width)"
+          : "var(--sidebar-width)",
+      }}
     >
       <NavLink
         to="/landing"
-        className={cn(
-          "flex h-[var(--topbar-height)] items-center justify-center border-b border-[var(--color-sidebar-border)]",
-          "px-0"
-        )}
+        className="flex h-[var(--topbar-height)] items-center justify-center border-b border-white/[0.06]"
+        aria-label="ParkWise command overview"
       >
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-[var(--color-primary)] shadow-[0_0_0_4px_rgba(0,212,255,0.08)] transition hover:bg-slate-800">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-cyan-300/18 bg-cyan-300/[0.075] text-[var(--color-primary)] shadow-[0_0_26px_-9px_rgba(79,209,197,0.75)] transition duration-300 hover:scale-105 hover:border-cyan-200/25 hover:bg-cyan-300/[0.12]">
           <Shield className="h-5 w-5" />
         </div>
       </NavLink>
 
-      {/* ── Navigation ── */}
-      <ScrollArea className="flex-1 py-3">
-        <nav className="flex flex-col gap-2 px-2">
+      <ScrollArea className="flex-1 py-4">
+        <nav className="flex flex-col gap-2.5 px-2.5">
           {NAV_ITEMS.map((item) => {
             const isActive =
               location.pathname === item.path ||
-              (item.path !== "/dashboard" && location.pathname.startsWith(item.path));
+              (item.path !== "/dashboard" &&
+                location.pathname.startsWith(item.path));
 
-            const linkContent = (
-              <NavLink
-                to={item.path}
-                className={cn(
-                  "group flex h-14 w-full items-center justify-center rounded-3xl transition-colors",
-                  isActive
-                    ? "bg-[rgba(0,212,255,0.14)] text-[var(--color-sidebar-text-active)] shadow-[0_0_0_8px_rgba(0,212,255,0.12)]"
-                    : "text-[var(--color-sidebar-text)] hover:bg-[var(--color-sidebar-hover)] hover:text-[var(--color-sidebar-text-active)]"
-                )}
-              >
-                <item.icon
-                  className={cn(
-                    "h-6 w-6 transition-colors",
-                    isActive
-                      ? "text-[var(--color-sidebar-icon-active)]"
-                      : "text-[var(--color-sidebar-icon)] group-hover:text-[var(--color-sidebar-icon-active)]"
+            return (
+              <Tooltip key={item.key} delayDuration={80}>
+                <TooltipTrigger asChild>
+                  <NavLink
+                    to={item.path}
+                    className={cn(
+                      "group relative flex h-12 w-full items-center justify-center overflow-hidden rounded-[15px] border transition-all duration-300",
+                      isActive
+                        ? "border-cyan-300/18 bg-[linear-gradient(145deg,rgba(103,232,249,0.14),rgba(34,211,238,0.055))] text-white shadow-[0_0_28px_-10px_rgba(79,209,197,0.9)]"
+                        : "border-transparent text-[var(--color-sidebar-text)] hover:-translate-y-0.5 hover:border-white/[0.075] hover:bg-white/[0.05] hover:text-white"
+                    )}
+                    aria-label={item.label}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 h-5 w-0.5 rounded-r-full bg-cyan-300 shadow-[0_0_10px_rgba(79,209,197,0.9)]" />
+                    )}
+                    <item.icon
+                      className={cn(
+                        "h-5 w-5 transition-all duration-300 group-hover:scale-105",
+                        isActive
+                          ? "text-[var(--color-sidebar-icon-active)]"
+                          : "text-[var(--color-sidebar-icon)] group-hover:text-[var(--color-sidebar-icon-active)]"
+                      )}
+                    />
+                  </NavLink>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="right"
+                  sideOffset={10}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/95 px-3 py-2 text-xs font-medium shadow-xl shadow-black/30"
+                >
+                  {item.label}
+                  {item.badge && (
+                    <span className="text-violet-300">{item.badge}</span>
                   )}
-                />
-              </NavLink>
+                </TooltipContent>
+              </Tooltip>
             );
-
-            if (sidebarCollapsed) {
-              return (
-                <Tooltip key={item.key} delayDuration={0}>
-                  <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                  <TooltipContent side="right" className="flex items-center gap-2">
-                    {item.label}
-                    {item.badge && <span className="text-purple-300">{item.badge}</span>}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
-
-            return <div key={item.key}>{linkContent}</div>;
           })}
         </nav>
       </ScrollArea>
-
-      <div className="border-t border-[var(--color-sidebar-border)] p-2">
-        <div className="flex items-center justify-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.35)]" />
-          <span className="text-[11px] uppercase tracking-[0.25em] text-slate-400">API</span>
-        </div>
-        <div className="mt-2 flex items-center justify-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-amber-400" />
-          <span className="text-[11px] uppercase tracking-[0.25em] text-slate-400">DB</span>
-        </div>
-      </div>
     </aside>
   );
 }

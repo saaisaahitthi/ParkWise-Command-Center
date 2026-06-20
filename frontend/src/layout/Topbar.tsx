@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { Bell, RefreshCw, ChevronDown, CircleDot } from "lucide-react";
+import { Bell, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/appStore";
 import { Button } from "@/components/ui/button";
@@ -16,14 +16,14 @@ function usePageTitle(): string {
 }
 
 export function Topbar() {
-  const { sidebarCollapsed, useMockData, toggleMockData } = useAppStore();
+  const { sidebarCollapsed } = useAppStore();
   const pageTitle = usePageTitle();
 
   return (
     <header
       className={cn(
         "fixed right-0 top-0 z-30 flex items-center justify-between gap-4 px-6",
-        "border-b border-[var(--color-topbar-border)] bg-[var(--color-topbar-bg)] backdrop-blur-xl",
+        "border-b border-white/[0.07] bg-[#08111a]/92 shadow-[0_18px_50px_-42px_rgba(34,211,238,0.35)] backdrop-blur-2xl",
         "transition-all duration-300"
       )}
       style={{
@@ -31,43 +31,22 @@ export function Topbar() {
         left: sidebarCollapsed ? "var(--sidebar-collapsed-width)" : "var(--sidebar-width)",
       }}
     >
-      <div className="flex min-w-0 items-center gap-5">
-        <div className="rounded-3xl border border-slate-700 bg-slate-950/90 px-4 py-3 shadow-[0_20px_50px_-40px_rgba(0,0,0,0.6)]">
-          <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Jabalpur Command Center</p>
-          <h1 className="mt-1 text-lg font-display font-semibold text-white leading-tight">
+      <div className="flex min-w-0 items-center">
+        <div className="min-w-0">
+          <p className="truncate text-[9px] font-semibold uppercase tracking-[0.3em] text-cyan-300/65">
+            Bengaluru Command Center
+          </p>
+          <h1 className="mt-1 truncate font-display text-[19px] font-semibold leading-tight tracking-[0.01em] text-white">
             {pageTitle}
           </h1>
         </div>
-        <button
-          onClick={toggleMockData}
-          title="Click to toggle between Mock Data and Live API Mode"
-          className={cn(
-            "hidden xl:flex items-center gap-3 rounded-3xl border px-4 py-2.5 shadow-[0_20px_50px_-40px_rgba(0,0,0,0.6)] transition-all active:scale-95 cursor-pointer",
-            useMockData
-              ? "border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15 text-amber-300"
-              : "border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-300"
-          )}
-        >
-          <span className={cn(
-            "h-2 w-2 rounded-full",
-            useMockData ? "bg-amber-400 animate-pulse" : "bg-emerald-400 animate-pulse"
-          )} />
-          <span className="text-xs uppercase font-bold tracking-[0.2em] font-display">
-            {useMockData ? "Mock Simulation Mode" : "Live API Connected"}
-          </span>
-        </button>
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden md:flex items-center gap-2 rounded-2xl bg-slate-900/80 px-3 py-2 text-sm text-slate-300">
-          <CircleDot className="h-3.5 w-3.5 text-[var(--color-primary)]" />
-          <span>City online</span>
-        </div>
-
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-10 w-10 rounded-2xl text-slate-300 hover:bg-slate-800 hover:text-white"
+          className="relative h-10 w-10 rounded-[14px] border border-transparent text-slate-400 transition hover:border-white/[0.08] hover:bg-white/[0.05] hover:text-white"
           aria-label="View notifications"
         >
           <Bell className="h-5 w-5" />
@@ -76,25 +55,16 @@ export function Topbar() {
           </span>
         </Button>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-10 w-10 rounded-2xl text-slate-300 hover:bg-slate-800 hover:text-white"
-          aria-label="Refresh dashboard"
-        >
-          <RefreshCw className="h-5 w-5" />
-        </Button>
-
         <button
-          className="hidden sm:flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/90 px-3 py-2 text-left transition hover:border-slate-500"
+          className="hidden items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-2.5 py-1.5 text-left shadow-lg shadow-black/10 transition hover:border-cyan-300/20 hover:bg-white/[0.055] sm:flex"
           aria-label="User profile menu"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-slate-200">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/10 bg-cyan-300/[0.07] text-xs font-semibold text-cyan-100">
             OP
           </div>
           <div className="hidden lg:flex flex-col leading-tight">
             <span className="text-sm font-semibold text-white">Operator</span>
-            <span className="text-xs text-slate-500">Shift 2</span>
+            <span className="text-[11px] text-slate-500">Control room</span>
           </div>
           <ChevronDown className="h-4 w-4 text-slate-400" />
         </button>

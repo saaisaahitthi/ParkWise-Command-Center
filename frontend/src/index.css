@@ -18,8 +18,6 @@
   --color-sidebar-icon-active: #4fd1c5;
   --color-topbar-bg: rgba(12, 18, 27, 0.96);
   --color-topbar-border: #172838;
-  --color-statusbar-bg: rgba(12, 18, 27, 0.96);
-  --color-statusbar-border: #172838;
   --color-page-text: #d4dfe9;
   --color-heading: #f6fbff;
   --color-muted: #8fa7ba;
@@ -31,7 +29,6 @@
   --sidebar-width: 72px;
   --sidebar-collapsed-width: 72px;
   --topbar-height: 72px;
-  --statusbar-height: 32px;
   --font-sans: "Inter", system-ui, sans-serif;
   --font-display: "Rajdhani", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
@@ -98,6 +95,42 @@ body {
 
 .leaflet-container {
   background: #09101a !important;
+}
+
+.patrol-map-shell .leaflet-top.leaflet-right {
+  margin-top: 12px;
+  margin-right: 12px;
+}
+
+.patrol-map-shell .leaflet-control-zoom {
+  overflow: hidden;
+  border: 1px solid rgba(103, 232, 249, 0.18) !important;
+  border-radius: 14px !important;
+  background: rgba(7, 15, 24, 0.9) !important;
+  box-shadow: 0 16px 38px -20px rgba(34, 211, 238, 0.8) !important;
+  backdrop-filter: blur(14px);
+}
+
+.patrol-map-shell .leaflet-control-zoom a {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 34px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+  background: rgba(15, 29, 41, 0.92) !important;
+  color: #a5f3fc !important;
+  font-size: 19px !important;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.patrol-map-shell .leaflet-control-zoom a:last-child {
+  border-bottom: 0 !important;
+}
+
+.patrol-map-shell .leaflet-control-zoom a:hover,
+.patrol-map-shell .leaflet-control-zoom a:focus {
+  background: rgba(34, 211, 238, 0.14) !important;
+  color: #ecfeff !important;
 }
 
 @keyframes map-pulse {
