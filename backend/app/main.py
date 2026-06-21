@@ -143,10 +143,11 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def generic_error_handler(request: Request, exc: Exception):
+        import traceback
         logger.error("unhandled_exception", error=str(exc), path=request.url.path)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": "An unexpected server error occurred."},
+            content={"error": str(exc), "trace": traceback.format_exc()},
         )
 
     # ── Routers ───────────────────────────────────────────────────────────────
