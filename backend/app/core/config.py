@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = Field(default="development", pattern="^(development|staging|production)$")
     DEBUG: bool = True
-    SECRET_KEY: str = Field(min_length=32)
+    SECRET_KEY: str = Field(default="super-secret-default-key-for-dev-only-32-chars-long", min_length=32)
 
     @field_validator("DEBUG", mode="before")
     @classmethod
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "parkwise"
-    POSTGRES_PASSWORD: str
+    POSTGRES_PASSWORD: str = "dummy"
     POSTGRES_DB: str = "parkwise_db"
     DATABASE_URL: Optional[str] = None
 
