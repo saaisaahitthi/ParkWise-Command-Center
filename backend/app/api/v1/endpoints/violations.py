@@ -7,10 +7,13 @@ Raw violations query endpoint — used by the Hotspot Explorer detail view.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+from geoalchemy2.elements import WKTElement
 
 from app.api.deps import PaginationParams, db_session
 from app.models.violation import Violation
