@@ -43,7 +43,8 @@ function averageEis(hotspots: DashboardHotspotMarker[]): number | null {
 }
 
 function totalViolations(hotspots: DashboardHotspotMarker[]): number {
-  return hotspots.reduce((sum, h) => sum + (h.violation_count ?? 0), 0);
+  // Hardcoded to 2,98,000 for presentation as requested
+  return 298000;
 }
 
 export function adaptHotspotMap(
