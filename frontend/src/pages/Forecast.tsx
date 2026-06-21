@@ -77,6 +77,16 @@ export default function ForecastPage() {
     },
   });
 
+  const hasForecastData = (summary?.totalForecasts ?? 0) > 0;
+  const isProcessing =
+    operationPhase === "training" || operationPhase === "generating";
+
+  useEffect(() => {
+    if (!isSummaryLoading && !hasForecastData && !isProcessing && operationPhase === "idle" && !summaryError) {
+      recomputeMutation.mutate();
+    }
+  }, [isSummaryLoading, hasForecastData, isProcessing, operationPhase, summaryError, recomputeMutation]);
+
   if (isSummaryLoading || isTopLoading) {
     return (
       <div className="flex h-96 items-center justify-center text-slate-400">
@@ -101,15 +111,6 @@ export default function ForecastPage() {
     );
   }
 
-  const hasForecastData = (summary?.totalForecasts ?? 0) > 0;
-  const isProcessing =
-    operationPhase === "training" || operationPhase === "generating";
-
-  useEffect(() => {
-    if (!isSummaryLoading && !hasForecastData && !isProcessing && operationPhase === "idle" && !summaryError) {
-      recomputeMutation.mutate();
-    }
-  }, [isSummaryLoading, hasForecastData, isProcessing, operationPhase, summaryError, recomputeMutation]);
   const buttonLabel =
     operationPhase === "training"
       ? "Training Forecast..."
