@@ -69,7 +69,7 @@ The risk score is based on components such as:
 * Severity
 * Exposure
 
-It helps enforcement teams understand why a specific hotspot is prioritized.
+It help enforcement teams understand why a specific hotspot is prioritized.
 
 ---
 
