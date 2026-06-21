@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: parkwise-backend
+    env: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 10000"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_ENV
+        value: production
