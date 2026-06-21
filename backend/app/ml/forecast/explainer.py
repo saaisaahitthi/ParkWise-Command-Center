@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence
 
 try:
-    import shap
+    # Disable SHAP to prevent memory leaks in batch loops on Render Free Tier
+    # import shap
+    shap = None
 except Exception:
     shap = None
 
