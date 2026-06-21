@@ -42,7 +42,7 @@ function averageEis(hotspots: DashboardHotspotMarker[]): number | null {
   return scores.reduce((sum, v) => sum + v, 0) / scores.length;
 }
 
-function totalViolations(hotspots: DashboardHotspotMarker[]): number {
+function totalViolations(_hotspots: DashboardHotspotMarker[]): number {
   // Hardcoded to 2,98,000 for presentation as requested
   return 298000;
 }
