@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.v1.endpoints.allocation import router
+from app.api.v1.endpoints.allocation import _distribute_officers_exact, router
 from app.api.deps import db_session
 
 
@@ -32,6 +32,12 @@ class FakeHotspot:
     centroid_lat = 17.4
     centroid_lon = 78.4
     centroid_lng = 78.4
+    total_violations = 100
+
+
+class FakeForecast:
+    predicted_eis = 90.0
+    predicted_risk_category = "Critical"
 
 
 class FakeAllocation:
@@ -50,22 +56,25 @@ class FakeAllocation:
 def test_compute_allocation_success():
     mock_db = MagicMock()
 
-    query_mock = MagicMock()
-    mock_db.query.return_value = query_mock
-
-    subq_mock = MagicMock()
-    query_mock.group_by.return_value.subquery.return_value = subq_mock
-
-    eis_query = MagicMock()
+    latest_eis_query = MagicMock()
+    latest_forecast_query = MagicMock()
+    ranked_query = MagicMock()
     mock_db.query.side_effect = [
-        query_mock,
-        eis_query,
+        latest_eis_query,
+        latest_forecast_query,
+        ranked_query,
     ]
 
-    eis_query.join.return_value = eis_query
-    eis_query.filter.return_value = eis_query
-    eis_query.order_by.return_value = eis_query
-    eis_query.all.return_value = [(FakeEISScore(), FakeHotspot())]
+    latest_eis_query.group_by.return_value.subquery.return_value = MagicMock()
+    latest_forecast_query.filter.return_value = latest_forecast_query
+    latest_forecast_query.group_by.return_value.subquery.return_value = MagicMock()
+
+    ranked_query.outerjoin.return_value = ranked_query
+    ranked_query.order_by.return_value = ranked_query
+    ranked_query.limit.return_value = ranked_query
+    ranked_query.all.return_value = [
+        (FakeHotspot(), FakeEISScore(), FakeForecast())
+    ]
 
     app = make_app(mock_db)
     client = TestClient(app)
@@ -78,7 +87,12 @@ def test_compute_allocation_success():
         },
     )
 
-    assert response.status_code in {200, 422, 500}
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total_officers"] == 5
+    assert payload["hotspots_covered"] == 1
+    assert payload["unallocated_officers"] == 0
+    assert payload["allocations"][0]["officers_allocated"] == 5
 
 
 def test_latest_allocation_not_found():
@@ -94,3 +108,24 @@ def test_latest_allocation_not_found():
     response = client.get("/allocation/latest")
 
     assert response.status_code == 404
+
+
+def test_exact_distribution_uses_all_officers_across_ten_hotspots():
+    allocations = _distribute_officers_exact(
+        total_officers=45,
+        priority_weights=[100, 90, 80, 70, 60, 50, 40, 30, 20, 10],
+    )
+
+    assert len(allocations) == 10
+    assert sum(allocations) == 45
+    assert all(officers >= 1 for officers in allocations)
+    assert allocations[0] > allocations[-1]
+
+
+def test_exact_distribution_limits_rows_when_officers_are_fewer():
+    allocations = _distribute_officers_exact(
+        total_officers=5,
+        priority_weights=[100, 90, 80, 70, 60],
+    )
+
+    assert allocations == [1, 1, 1, 1, 1]

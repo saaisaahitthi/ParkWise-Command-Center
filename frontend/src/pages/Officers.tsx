@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CheckCircle,
@@ -14,15 +14,25 @@ import {
   computeAllocation,
   fetchLatestAllocation,
 } from "@/services/officers";
-import { getLocationDisplayName } from "@/data/dashboardPresentationData";
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "Allocation optimization failed. Please try again.";
+}
 
 export default function OfficersPage() {
+  const queryClient = useQueryClient();
   const [totalOfficersInput, setTotalOfficersInput] = useState(20);
   const [topNHotspotsInput, setTopNHotspotsInput] = useState(4);
   const [updated, setUpdated] = useState(false);
+  const [computeError, setComputeError] = useState("");
 
   // Fetch latest allocation data
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["allocation-latest"],
     queryFn: fetchLatestAllocation,
     refetchInterval: 10000,
@@ -30,15 +40,24 @@ export default function OfficersPage() {
 
   // Recompute allocation mutation
   const computeMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: () => {
+      setComputeError("");
+      setUpdated(false);
+      return (
       computeAllocation({
         total_officers: totalOfficersInput,
         top_n_hotspots: topNHotspotsInput,
-      }),
-    onSuccess: () => {
+      })
+      );
+    },
+    onSuccess: (allocationPlan) => {
+      queryClient.setQueryData(["allocation-latest"], allocationPlan);
+      void queryClient.invalidateQueries({ queryKey: ["dashboard-full"] });
       setUpdated(true);
-      refetch();
       setTimeout(() => setUpdated(false), 3000);
+    },
+    onError: (mutationError) => {
+      setComputeError(getErrorMessage(mutationError));
     },
   });
 
@@ -59,13 +78,19 @@ export default function OfficersPage() {
         <AlertTriangle className="mx-auto h-12 w-12 mb-3 text-red-500 animate-pulse" />
         <h3 className="text-lg font-semibold text-white">Allocation Stream Disconnected</h3>
         <p className="mt-2 text-sm text-slate-400">
-          Verify backend connectivity at <code className="text-red-200">http://127.0.0.1:8000/api/v1</code> or toggle header Mode to Mock.
+          {getErrorMessage(error)}
         </p>
       </div>
     );
   }
 
-  const { total_officers_allocated, hotspots_covered, allocations = [] } = data;
+  const {
+    total_officers_requested,
+    total_officers_allocated,
+    hotspots_covered,
+    unallocated_officers,
+    allocations = [],
+  } = data;
 
   return (
     <div className="space-y-4 pb-6">
@@ -113,6 +138,23 @@ export default function OfficersPage() {
           </Card>
         ))}
       </div>
+
+      {computeError ? (
+        <div className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-sm text-rose-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{computeError}</span>
+        </div>
+      ) : null}
+
+      {unallocated_officers > 0 ? (
+        <div className="rounded-2xl border border-amber-300/15 bg-amber-300/[0.055] px-4 py-3 text-xs leading-5 text-amber-100/80">
+          <span className="font-semibold text-amber-100">
+            {total_officers_allocated} of {total_officers_requested} officers deployed.
+          </span>{" "}
+          {unallocated_officers} remain unallocated because the current eligible
+          hotspots and per-hotspot deployment caps do not require additional units.
+        </div>
+      ) : null}
 
       <div className="grid items-start gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
         <Card className="relative h-fit overflow-hidden rounded-[24px] border-cyan-300/[0.1] bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_38%),linear-gradient(150deg,rgba(14,27,39,0.96),rgba(7,15,24,0.9))] p-4 shadow-[0_24px_70px_-50px_rgba(34,211,238,0.9)]">
@@ -184,7 +226,11 @@ export default function OfficersPage() {
                 <Shield className="h-3.5 w-3.5" />
               )}
               <span>
-                {updated ? "Allocation Applied!" : "Optimize Allocations"}
+                {computeMutation.isPending
+                  ? "Optimizing..."
+                  : updated
+                    ? "Allocation Applied!"
+                    : "Optimize Allocations"}
               </span>
             </button>
           </div>
@@ -219,9 +265,18 @@ export default function OfficersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.055] text-sm text-slate-300">
-                {allocations.map((alloc) => (
+                {allocations.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-10 text-center text-sm text-slate-500"
+                    >
+                      No allocation rows are available.
+                    </td>
+                  </tr>
+                ) : allocations.map((alloc) => (
                   <tr
-                    key={alloc.hotspot_name}
+                    key={alloc.hotspot_id}
                     className="transition duration-200 hover:bg-cyan-300/[0.035]"
                   >
                     <td className="px-4 py-3.5 text-center">
@@ -232,22 +287,29 @@ export default function OfficersPage() {
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
                         <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.8)]" />
-                        <span className="font-semibold text-slate-200">
-                          {getLocationDisplayName(alloc.hotspot_name)}
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-slate-200">
+                            {alloc.displayName}
+                          </span>
+                          {alloc.displaySubtext ? (
+                            <span className="mt-0.5 block font-mono text-[9px] text-slate-600">
+                              {alloc.displaySubtext}
+                            </span>
+                          ) : null}
                         </span>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 text-center">
                       <span
                         className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] ${
-                          alloc.risk_category === "Critical"
+                          alloc.displayRiskTier === "Critical"
                             ? "border-rose-400/20 bg-rose-400/10 text-rose-200"
-                            : alloc.risk_category === "High"
+                            : alloc.displayRiskTier === "High"
                               ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
                               : "border-blue-400/20 bg-blue-400/10 text-blue-200"
                         }`}
                       >
-                        {alloc.risk_category}
+                        {alloc.displayRiskTier}
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-right">

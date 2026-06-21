@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchForecastSummary, fetchTopForecasts } from "@/services/forecast";
+import { getForecastSummary, getTopForecasts } from "@/services/forecast";
 
 export function useForecastSummary() {
   return useQuery({
     queryKey: ["forecast-summary"],
-    queryFn: fetchForecastSummary,
+    queryFn: getForecastSummary,
     refetchInterval: 10_000,
   });
 }
@@ -12,7 +12,7 @@ export function useForecastSummary() {
 export function useTopForecasts() {
   return useQuery({
     queryKey: ["forecast-top"],
-    queryFn: fetchTopForecasts,
+    queryFn: getTopForecasts,
     refetchInterval: 10_000,
   });
 }

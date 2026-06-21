@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str = Field(min_length=32)
 
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug_flag(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "production", "prod"}:
+                return False
+            if normalized in {"debug", "development", "dev"}:
+                return True
+        return value
+
     # ── API ───────────────────────────────────────────────────────────────────
     API_V1_PREFIX: str = "/api/v1"
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]

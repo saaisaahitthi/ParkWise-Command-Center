@@ -1,22 +1,46 @@
-import apiClient from "@/lib/axios";
-import type { ApiResponse, PaginatedResponse, Zone } from "@/types";
+import { apiGetLive } from "@/lib/api";
 
 export interface HotspotsParams {
   page?: number;
   page_size?: number;
-  zone_ids?: string[];
-  from_date?: string;
-  to_date?: string;
+  zone_id?: string;
+  min_violations?: number;
 }
 
-export async function fetchHotspots(params?: HotspotsParams): Promise<PaginatedResponse<Zone>> {
-  const { data } = await apiClient.get<ApiResponse<PaginatedResponse<Zone>>>("/hotspots", {
-    params,
-  });
-  return data.data;
+export interface HotspotRecord {
+  id: number;
+  cluster_label: number;
+  hotspot_name: string | null;
+  centroid_lat: number;
+  centroid_lon: number;
+  total_violations: number;
+  dominant_violation_type: string | null;
+  zone_id: string | null;
+  radius_m: number | null;
+  unique_dates: number | null;
+  dominant_vehicle_category: string | null;
+  avg_fine_amount: number | null;
+  violation_density: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
-export async function fetchZoneById(zoneId: string): Promise<Zone> {
-  const { data } = await apiClient.get<ApiResponse<Zone>>(`/hotspots/${zoneId}`);
-  return data.data;
+export interface HotspotListResponse {
+  items: HotspotRecord[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export async function fetchHotspots(
+  params?: HotspotsParams
+): Promise<HotspotListResponse> {
+  return apiGetLive<HotspotListResponse>(
+    "/hotspots/",
+    params ? { ...params } : undefined
+  );
+}
+
+export async function fetchZoneById(zoneId: string): Promise<HotspotRecord> {
+  return apiGetLive<HotspotRecord>(`/hotspots/${zoneId}`);
 }

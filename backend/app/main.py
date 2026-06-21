@@ -162,6 +162,38 @@ def create_app() -> FastAPI:
             "env": settings.APP_ENV,
         }
 
+    default_openapi = app.openapi
+
+    def openapi_with_forecast_train_example():
+        schema = default_openapi()
+        forecast_train = schema["paths"].get(
+            f"{settings.API_V1_PREFIX}/forecast/train",
+            {},
+        ).get("post")
+        if forecast_train:
+            content = forecast_train["requestBody"]["content"]["application/json"]
+            content["examples"]["default"]["value"] = {
+                "horizon_days": 1,
+                "hotspot_id": None,
+                "model_version": "forecast-v1-h1",
+                "min_history_per_hotspot": 1,
+            }
+        forecast_generate = schema["paths"].get(
+            f"{settings.API_V1_PREFIX}/forecast/generate",
+            {},
+        ).get("post")
+        if forecast_generate:
+            content = forecast_generate["requestBody"]["content"]["application/json"]
+            content["examples"]["default"]["value"] = {
+                "horizon_days": 1,
+                "hotspot_id": None,
+                "replace_existing": True,
+                "pipeline_run_id": "forecast-v1-h1",
+            }
+        return schema
+
+    app.openapi = openapi_with_forecast_train_example
+
     return app
 
 

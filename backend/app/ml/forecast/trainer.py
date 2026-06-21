@@ -42,7 +42,11 @@ class ForecastTrainer:
             )
 
         model = ForecastModel(
-            model_version=f"{self.model_version}-h{horizon_days}",
+            model_version=(
+                self.model_version
+                if self.model_version.endswith(f"-h{horizon_days}")
+                else f"{self.model_version}-h{horizon_days}"
+            ),
         )
 
         result = model.fit(

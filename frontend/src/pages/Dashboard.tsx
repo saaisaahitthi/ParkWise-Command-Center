@@ -15,15 +15,13 @@ import { PageHeader } from "@/layout/PageHeader";
 import { useDashboard } from "@/hooks/useDashboard";
 import {
   dashboardMetricDescriptions,
-  getLocationDisplayName,
 } from "@/data/dashboardPresentationData";
 
-// Map Jabalpur coordinates to mock SVG coordinates (0 - 100) for visual representation
 function latLngToXY(lat: number, lng: number) {
-  const minLat = 23.14;
-  const maxLat = 23.18;
-  const minLng = 79.92;
-  const maxLng = 79.96;
+  const minLat = 12.80;
+  const maxLat = 13.20;
+  const minLng = 77.45;
+  const maxLng = 77.80;
 
   const x = 20 + ((lng - minLng) / (maxLng - minLng)) * 60;
   const y = 80 - ((lat - minLat) / (maxLat - minLat)) * 60;
@@ -73,7 +71,7 @@ export default function DashboardPage() {
       icon: AlertTriangle,
       accent: "bg-[#F97316]/10 text-[#F97316]",
     },
-    "High Risk Zones": {
+    "Priority Zones": {
       description: dashboardMetricDescriptions.highRiskZones,
       icon: MapPin,
       accent: "bg-[#38BDF8]/10 text-[#38BDF8]",
@@ -90,13 +88,26 @@ export default function DashboardPage() {
     },
   } as const;
 
-  const markers = data.hotspotMap.map((item) => {
+  const priorityHotspots = data.hotspotMap.filter(
+    (item) => item.displayRiskTier !== "Low"
+  );
+  const mapHotspots = priorityHotspots.slice(0, 20);
+  const riskLegend = [
+    { label: "Critical", color: "#EF4444" },
+    { label: "High", color: "#F59E0B" },
+    { label: "Medium", color: "#3B82F6" },
+    { label: "Low", color: "#10B981" },
+  ].filter((legend) =>
+    mapHotspots.some((hotspot) => hotspot.displayRiskTier === legend.label)
+  );
+
+  const markers = mapHotspots.map((item) => {
     const { x, y } = latLngToXY(item.latitude, item.longitude);
-    const color = item.risk_category === "Critical" 
+    const color = item.displayRiskTier === "Critical"
       ? "#EF4444" 
-      : item.risk_category === "High" 
+      : item.displayRiskTier === "High"
         ? "#F59E0B" 
-        : item.risk_category === "Medium" 
+        : item.displayRiskTier === "Medium"
           ? "#3B82F6" 
           : "#10B981";
     return {
@@ -105,22 +116,22 @@ export default function DashboardPage() {
       lng: item.longitude,
       x,
       y,
-      label: getLocationDisplayName(item.name),
-      risk: mapRiskLevel(item.risk_category),
+      label: item.displayName,
+      risk: mapRiskLevel(item.displayRiskTier),
       color,
       selected: String(item.hotspot_id) === selectedMarkerId,
     };
   });
 
-  const selectedHotspot = data.hotspotMap.find(
+  const selectedHotspot = priorityHotspots.find(
     (hotspot) => String(hotspot.hotspot_id) === selectedMarkerId
   );
   const popups = selectedHotspot
     ? [
         {
           id: `popup-${selectedHotspot.hotspot_id}`,
-          title: getLocationDisplayName(selectedHotspot.name),
-          description: `Risk Score: ${selectedHotspot.latest_eis} • Forecast Risk: ${selectedHotspot.forecasted_eis} • Risk: ${selectedHotspot.risk_category} • Officers: ${selectedHotspot.officers_allocated}`,
+          title: selectedHotspot.displayName,
+          description: `Risk Score: ${selectedHotspot.displayRiskScore.toFixed(1)} · Display Tier: ${selectedHotspot.displayRiskTier} · Rank: #${selectedHotspot.displayRiskRank}`,
           position: latLngToXY(selectedHotspot.latitude, selectedHotspot.longitude),
           latLng: [selectedHotspot.latitude, selectedHotspot.longitude] as [number, number],
           open: true,
@@ -169,15 +180,10 @@ export default function DashboardPage() {
         <div className="dashboard-map-shell rounded-[28px] border border-cyan-300/10 bg-slate-950/50 p-1.5 shadow-[0_35px_90px_-55px_rgba(34,211,238,0.65)]">
           <MapMyIndiaWrapper
             title="Bengaluru Command Map"
-            subtitle="Live spatial view of parking risk zones and patrol coverage."
+            subtitle="Showing top 20 priority hotspots across Bengaluru"
             markers={markers}
             popups={popups}
-            legendItems={[
-              { label: "Critical", color: "#EF4444" },
-              { label: "High", color: "#F59E0B" },
-              { label: "Medium", color: "#3B82F6" },
-              { label: "Low", color: "#10B981" },
-            ]}
+            legendItems={riskLegend}
             onMarkerClick={(marker) => setSelectedMarkerId(marker.id)}
             variant="dashboard"
           />
@@ -207,13 +213,13 @@ export default function DashboardPage() {
                   Top Priority Hotspots
                 </h3>
                 <p className="mt-0.5 text-[10px] text-slate-500">
-                  Priority clusters requiring attention
+                  Top ranked hotspots by risk score across the city
                 </p>
               </div>
               <MapPin className="h-4 w-4 text-rose-300/80" />
             </div>
             <div className="max-h-[220px] space-y-1 overflow-y-auto p-2">
-              {data.hotspotMap.slice(0, 4).map((hotspot) => (
+              {priorityHotspots.slice(0, 5).map((hotspot) => (
                 <button
                   type="button"
                   key={hotspot.hotspot_id}
@@ -228,23 +234,25 @@ export default function DashboardPage() {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold text-slate-200">
-                      {getLocationDisplayName(hotspot.name)}
+                      {hotspot.displayName}
                     </p>
                     <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
                       <Navigation className="h-2.5 w-2.5" />
-                      {hotspot.hotspot_type}
+                      {hotspot.hotspot_type !== "Unknown"
+                        ? hotspot.hotspot_type
+                        : hotspot.displaySubtext}
                     </p>
                   </div>
                   <span
                     className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-wider ${
-                      hotspot.risk_category === "Critical"
+                      hotspot.displayRiskTier === "Critical"
                         ? "border-rose-400/20 bg-rose-400/[0.09] text-rose-200"
-                        : hotspot.risk_category === "High"
+                        : hotspot.displayRiskTier === "High"
                           ? "border-amber-300/20 bg-amber-300/[0.08] text-amber-200"
                           : "border-sky-300/20 bg-sky-300/[0.08] text-sky-200"
                     }`}
                   >
-                    {hotspot.risk_category}
+                    {hotspot.displayRiskTier}
                   </span>
                 </button>
               ))}

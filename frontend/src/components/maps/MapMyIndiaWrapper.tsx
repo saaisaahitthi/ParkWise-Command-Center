@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { cn } from "@/lib/utils";
 
+const DEFAULT_MAP_CENTER: [number, number] = [12.9716, 77.5946];
+
 export interface MapMarkerItem {
   id: string;
   lat?: number;
@@ -66,11 +68,10 @@ export function MapMyIndiaWrapper({
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Jabalpur coordinate center
     const map = L.map(mapContainerRef.current, {
       zoomControl: false,
       attributionControl: false,
-    }).setView([23.1678, 79.9322], 13.5);
+    }).setView(DEFAULT_MAP_CENTER, 12.5);
 
     // CartoDB Dark Matter premium dark tiles
     L.tileLayer(
@@ -106,20 +107,38 @@ export function MapMyIndiaWrapper({
 
     // Plot pins
     markers.forEach((marker) => {
-      const lat = marker.lat ?? 23.1678;
-      const lng = marker.lng ?? 79.9322;
+      const lat = marker.lat ?? DEFAULT_MAP_CENTER[0];
+      const lng = marker.lng ?? DEFAULT_MAP_CENTER[1];
       const color = marker.color ?? "#EF4444";
+      const markerSize =
+        marker.risk === "Critical"
+          ? 19
+          : marker.risk === "High"
+            ? 16
+            : marker.risk === "Medium"
+              ? 13
+              : 9;
+      const markerOpacity = marker.risk === "Low" ? 0.48 : 0.95;
+      const markerGlow =
+        marker.risk === "Critical"
+          ? 20
+          : marker.risk === "High"
+            ? 15
+            : marker.risk === "Medium"
+              ? 10
+              : 5;
 
       // Pulsing custom HTML pin icon
       const iconHtml = `
-        <div style="position: relative; width: 14px; height: 14px;">
+        <div style="position: relative; width: ${markerSize}px; height: ${markerSize}px;">
           <div style="
             background-color: ${color};
-            width: 14px;
-            height: 14px;
+            width: ${markerSize}px;
+            height: ${markerSize}px;
             border-radius: 50%;
             border: 2.5px solid #000;
-            box-shadow: 0 0 12px ${color};
+            box-shadow: 0 0 ${markerGlow}px ${color};
+            opacity: ${markerOpacity};
             position: absolute;
             top: 50%;
             left: 50%;
@@ -148,8 +167,8 @@ export function MapMyIndiaWrapper({
       const customIcon = L.divIcon({
         html: iconHtml,
         className: "",
-        iconSize: [26, 26],
-        iconAnchor: [13, 13],
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
       });
 
       const lfMarker = L.marker([lat, lng], { icon: customIcon }).addTo(
@@ -158,7 +177,7 @@ export function MapMyIndiaWrapper({
 
       // Attach tooltip
       lfMarker.bindTooltip(marker.label, {
-        permanent: true,
+        permanent: marker.selected || markers.length <= 50,
         direction: "top",
         offset: [0, -14],
         className:
@@ -192,7 +211,7 @@ export function MapMyIndiaWrapper({
 
     // Render active popups
     popups.forEach((popup) => {
-      const position = popup.latLng ?? [23.1678, 79.9322];
+      const position = popup.latLng ?? DEFAULT_MAP_CENTER;
       if (popup.open) {
         L.popup({
           closeButton: false,
@@ -218,7 +237,10 @@ export function MapMyIndiaWrapper({
       map.setView([selected.lat, selected.lng], 14.5, { animate: true });
     } else if (markers.length > 0) {
       const bounds = L.latLngBounds(
-        markers.map((m) => [m.lat ?? 23.1678, m.lng ?? 79.9322])
+        markers.map((m) => [
+          m.lat ?? DEFAULT_MAP_CENTER[0],
+          m.lng ?? DEFAULT_MAP_CENTER[1],
+        ])
       );
       map.fitBounds(bounds, { padding: [40, 40] });
     }

@@ -4,30 +4,56 @@ import {
   buildEisLookup,
 } from "@/adapters/forecast";
 import { adaptEisScoreList } from "@/adapters/temporal";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGetLive, apiPostLive } from "@/lib/api";
 import type {
   BackendEISScoreListResponse,
+  BackendForecastGenerateResponse,
   BackendForecastItem,
   BackendForecastSummary,
+  BackendForecastTrainResponse,
 } from "@/types/backend";
 import type { ForecastPredictionRow, ForecastSummaryView } from "@/types/views";
+import { fetchHotspotDisplayUniverse } from "@/services/hotspotDisplay";
 
-export async function fetchForecastSummary(): Promise<ForecastSummaryView> {
-  const raw = await apiGet<BackendForecastSummary>("/forecast/summary");
+export async function getForecastSummary(): Promise<ForecastSummaryView> {
+  const raw = await apiGetLive<BackendForecastSummary>("/forecast/summary");
   return adaptForecastSummary(raw);
 }
 
-export async function fetchTopForecasts(): Promise<ForecastPredictionRow[]> {
-  const [forecasts, eisResponse] = await Promise.all([
-    apiGet<BackendForecastItem[]>("/forecast/top"),
-    apiGet<BackendEISScoreListResponse>("/eis/scores"),
+export async function getTopForecasts(): Promise<ForecastPredictionRow[]> {
+  const [forecasts, eisResponse, riskUniverse] = await Promise.all([
+    apiGetLive<BackendForecastItem[]>("/forecast/top"),
+    apiGetLive<BackendEISScoreListResponse>("/eis/scores"),
+    fetchHotspotDisplayUniverse(),
   ]);
 
-  const eisScores = adaptEisScoreList(eisResponse);
-  const { eisByHotspot, hotspotNames } = buildEisLookup(eisScores);
-  return adaptForecastTop(forecasts, eisByHotspot, hotspotNames);
+  const eisScores = adaptEisScoreList(eisResponse, riskUniverse);
+  const { eisByHotspot, hotspotNames, tierByHotspot } =
+    buildEisLookup(eisScores);
+  return adaptForecastTop(
+    forecasts,
+    eisByHotspot,
+    hotspotNames,
+    tierByHotspot
+  );
 }
 
-export async function generateForecasts(): Promise<unknown> {
-  return apiPost("/forecast/generate", { horizon_days: 1, replace_existing: true });
+export async function trainForecast(): Promise<BackendForecastTrainResponse> {
+  return apiPostLive<BackendForecastTrainResponse>("/forecast/train", {
+    horizon_days: 1,
+    model_version: "forecast-v1-h1",
+    min_history_per_hotspot: 1,
+  });
 }
+
+export async function generateForecast(): Promise<BackendForecastGenerateResponse> {
+  return apiPostLive<BackendForecastGenerateResponse>("/forecast/generate", {
+    horizon_days: 1,
+    hotspot_id: null,
+    replace_existing: true,
+    pipeline_run_id: "forecast-v1-h1",
+  });
+}
+
+export const fetchForecastSummary = getForecastSummary;
+export const fetchTopForecasts = getTopForecasts;

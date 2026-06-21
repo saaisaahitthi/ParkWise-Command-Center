@@ -55,6 +55,17 @@ def make_scores(days: int = 12):
     ]
 
 
+def make_cross_sectional_scores(count: int = 12):
+    return [
+        FakeEISScore(
+            hotspot_id=index + 1,
+            computed_for_date=datetime(2026, 1, 1),
+            eis_score=30 + index,
+        )
+        for index in range(count)
+    ]
+
+
 def make_forecast():
     return FakeForecast(
         id=1,
@@ -99,6 +110,67 @@ def test_train_model_success():
     assert result["horizon_days"] == 1
     assert result["rows_used"] > 0
     assert 1 in _MODEL_REGISTRY
+
+
+def test_train_model_treats_hotspot_zero_as_all_hotspots():
+    db = MagicMock()
+    service = ForecastService(db)
+    scores = make_cross_sectional_scores()
+
+    with patch.object(
+        service.repository,
+        "get_historical_eis_scores",
+        return_value=scores,
+    ) as get_scores:
+        result = service.train_model(
+            horizon_days=1,
+            hotspot_id=0,
+            model_version="forecast-v1-h1",
+            min_history_per_hotspot=1,
+        )
+
+    get_scores.assert_called_once_with(hotspot_id=None)
+    assert result["training_mode"] == "cross_sectional"
+    assert result["rows_used"] == len(scores)
+    assert result["model_version"] == "forecast-v1-h1"
+    assert result["feature_names"]
+
+
+def test_train_model_reports_filter_rejection_when_table_has_rows():
+    db = MagicMock()
+    service = ForecastService(db)
+
+    with patch.object(
+        service.repository,
+        "get_historical_eis_scores",
+        return_value=[],
+    ), patch.object(
+        service.repository,
+        "count_eis_scores",
+        return_value=5872,
+    ):
+        with pytest.raises(ValueError, match="5872 rows.*hotspot_id=999999"):
+            service.train_model(hotspot_id=999999)
+
+
+def test_train_model_explains_single_row_dataset_history_requirement():
+    db = MagicMock()
+    service = ForecastService(db)
+
+    with patch.object(
+        service.repository,
+        "get_historical_eis_scores",
+        return_value=make_cross_sectional_scores(),
+    ):
+        with pytest.raises(
+            ValueError,
+            match=(
+                "Current dataset has one EIS row per hotspot. Use "
+                "min_history_per_hotspot=1 for hotspot-level cross-sectional "
+                "training."
+            ),
+        ):
+            service.train_model(min_history_per_hotspot=4)
 
 
 def test_generate_forecasts_loads_persisted_model_after_restart():
@@ -152,6 +224,36 @@ def test_generate_forecasts_success():
     assert result["status"] == "generated"
     assert result["forecasts_created"] == 1
     db.commit.assert_called_once()
+
+
+def test_generate_forecasts_treats_hotspot_zero_as_all_hotspots():
+    db = MagicMock()
+    service = ForecastService(db)
+    scores = make_scores()
+    _MODEL_REGISTRY[1] = forecast_service_module.CrossSectionalForecastModel(
+        model_version="forecast-v1-h1",
+        total_violations={},
+    )
+
+    with patch.object(
+        service.repository,
+        "get_historical_eis_scores",
+        return_value=scores,
+    ) as get_scores, patch(
+        "app.services.forecast_service.ForecastPredictor.predict",
+        return_value=[],
+    ), patch.object(
+        service.repository,
+        "delete_existing_forecasts",
+        return_value=0,
+    ), patch.object(
+        service.repository,
+        "bulk_create_forecasts",
+        return_value=[],
+    ):
+        service.generate_forecasts(hotspot_id=0)
+
+    get_scores.assert_called_once_with(hotspot_id=None)
 
 
 def test_list_forecasts_serializes_rows():

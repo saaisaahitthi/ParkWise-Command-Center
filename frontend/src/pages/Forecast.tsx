@@ -15,29 +15,58 @@ import {
   useForecastSummary,
   useTopForecasts,
 } from "@/hooks/useForecast";
-import { generateForecasts } from "@/services/forecast";
-import { getLocationDisplayName } from "@/data/dashboardPresentationData";
+import { generateForecast, trainForecast } from "@/services/forecast";
+
+type ForecastOperationPhase =
+  | "idle"
+  | "training"
+  | "generating"
+  | "success";
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "Forecast processing failed. Please try again.";
+}
 
 export default function ForecastPage() {
-  const [recomputed, setRecomputed] = useState(false);
+  const [operationPhase, setOperationPhase] =
+    useState<ForecastOperationPhase>("idle");
+  const [operationError, setOperationError] = useState("");
 
   const {
     data: summary,
     isLoading: isSummaryLoading,
     error: summaryError,
+    refetch: refetchSummary,
   } = useForecastSummary();
   const {
     data: topPredictions = [],
     isLoading: isTopLoading,
     error: topError,
+    refetch: refetchTopForecasts,
   } = useTopForecasts();
 
-  // Mutation to recompute forecast
   const recomputeMutation = useMutation({
-    mutationFn: generateForecasts,
-    onSuccess: () => {
-      setRecomputed(true);
-      setTimeout(() => setRecomputed(false), 3000);
+    mutationFn: async () => {
+      setOperationError("");
+      setOperationPhase("training");
+      await trainForecast();
+
+      setOperationPhase("generating");
+      return generateForecast();
+    },
+    onSuccess: async () => {
+      await Promise.all([refetchSummary(), refetchTopForecasts()]);
+      setOperationPhase("success");
+      setTimeout(() => setOperationPhase("idle"), 3000);
+    },
+    onError: (error) => {
+      setOperationPhase("idle");
+      setOperationError(getErrorMessage(error));
     },
   });
 
@@ -53,16 +82,31 @@ export default function ForecastPage() {
   }
 
   if (summaryError || topError) {
+    const loadError = getErrorMessage(summaryError ?? topError);
     return (
       <div className="rounded-3xl border border-red-900 bg-red-950/20 p-8 text-center text-red-300">
         <AlertTriangle className="mx-auto h-12 w-12 mb-3 text-red-500 animate-pulse" />
         <h3 className="text-lg font-semibold text-white">Forecast Stream Disconnected</h3>
         <p className="mt-2 text-sm text-slate-400">
-          Verify backend connectivity at <code className="text-red-200">http://127.0.0.1:8000/api/v1</code> or toggle header Mode to Mock.
+          {loadError}
         </p>
       </div>
     );
   }
+
+  const hasForecastData = (summary?.totalForecasts ?? 0) > 0;
+  const isProcessing =
+    operationPhase === "training" || operationPhase === "generating";
+  const buttonLabel =
+    operationPhase === "training"
+      ? "Training Forecast..."
+      : operationPhase === "generating"
+        ? "Generating Predictions..."
+        : operationPhase === "success"
+          ? "Forecast Updated"
+          : hasForecastData
+            ? "Recompute Forecast"
+            : "Generate Forecast";
 
   return (
     <div className="space-y-4 pb-6">
@@ -75,20 +119,54 @@ export default function ForecastPage() {
         <button
           type="button"
           onClick={() => recomputeMutation.mutate()}
-          disabled={recomputeMutation.isPending}
+          disabled={isProcessing}
           className="flex h-9 w-fit cursor-pointer items-center gap-2 self-start rounded-full border border-cyan-300/20 bg-cyan-300/[0.07] px-3.5 text-xs font-semibold text-cyan-100 shadow-[0_12px_30px_-20px_rgba(34,211,238,0.85)] transition hover:border-cyan-300/30 hover:bg-cyan-300/[0.11] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:self-center"
         >
-          {recomputeMutation.isPending ? (
+          {isProcessing ? (
             <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
-          ) : recomputed ? (
+          ) : operationPhase === "success" ? (
             <CheckCircle className="h-3.5 w-3.5 text-emerald-300" />
           ) : (
             <Cpu className="h-3.5 w-3.5" />
           )}
-          <span>{recomputed ? "Forecast Updated!" : "Recompute Forecast"}</span>
+          <span>{buttonLabel}</span>
         </button>
       </div>
 
+      {operationError ? (
+        <div className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-sm text-rose-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{operationError}</span>
+        </div>
+      ) : null}
+
+      {!hasForecastData ? (
+        <Card className="rounded-[26px] border-cyan-300/[0.1] bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.09),transparent_42%),linear-gradient(145deg,rgba(14,27,39,0.94),rgba(8,17,27,0.84))] px-6 py-12 text-center shadow-[0_28px_80px_-58px_rgba(34,211,238,0.6)]">
+          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.07] text-cyan-200">
+            <TrendingUp className="h-5 w-5" />
+          </span>
+          <h2 className="mt-4 text-lg font-semibold text-white">
+            No forecast generated yet
+          </h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">
+            Run forecast training to compute predictions.
+          </p>
+          <button
+            type="button"
+            onClick={() => recomputeMutation.mutate()}
+            disabled={isProcessing}
+            className="mt-5 inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/[0.09] px-4 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/30 hover:bg-cyan-300/[0.14] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isProcessing ? (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+            ) : (
+              <Cpu className="h-3.5 w-3.5" />
+            )}
+            {buttonLabel}
+          </button>
+        </Card>
+      ) : (
+        <>
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           {
@@ -164,7 +242,16 @@ export default function ForecastPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.055] text-sm text-slate-300">
-              {topPredictions.map((pred) => (
+              {topPredictions.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-5 py-10 text-center text-sm text-slate-500"
+                  >
+                    No high-risk forecast signals are present in the current horizon.
+                  </td>
+                </tr>
+              ) : topPredictions.map((pred) => (
                 <tr
                   key={pred.hotspot_id}
                   className="transition duration-200 hover:bg-cyan-300/[0.035]"
@@ -172,8 +259,15 @@ export default function ForecastPage() {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.8)]" />
-                      <span className="font-semibold text-slate-200">
-                        {getLocationDisplayName(pred.name)}
+                      <span className="min-w-0">
+                        <span className="block font-semibold text-slate-200">
+                          {pred.displayName}
+                        </span>
+                        {pred.displaySubtext ? (
+                          <span className="mt-0.5 block font-mono text-[9px] text-slate-600">
+                            {pred.displaySubtext}
+                          </span>
+                        ) : null}
                       </span>
                     </div>
                   </td>
@@ -188,14 +282,14 @@ export default function ForecastPage() {
                   <td className="px-4 py-3.5 text-center">
                     <span
                       className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] ${
-                        pred.risk_category === "Critical"
+                        pred.displayRiskTier === "Critical"
                           ? "border-rose-400/20 bg-rose-400/10 text-rose-200"
-                          : pred.risk_category === "High"
+                          : pred.displayRiskTier === "High"
                             ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
                             : "border-blue-400/20 bg-blue-400/10 text-blue-200"
                       }`}
                     >
-                      {pred.risk_category}
+                      {pred.displayRiskTier}
                     </span>
                   </td>
                   <td className="max-w-sm px-5 py-3.5 text-xs leading-5 text-slate-400">
@@ -207,6 +301,8 @@ export default function ForecastPage() {
           </table>
         </div>
       </Card>
+        </>
+      )}
     </div>
   );
 }

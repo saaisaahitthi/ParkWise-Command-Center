@@ -26,12 +26,28 @@ export async function apiGet<T>(url: string, params?: Record<string, unknown>): 
   return unwrapResponse(data);
 }
 
+export async function apiGetLive<T>(
+  url: string,
+  params?: Record<string, unknown>
+): Promise<T> {
+  const { data } = await apiClient.get<T | ApiResponse<T>>(url, { params });
+  return unwrapResponse(data);
+}
+
 export async function apiPost<T>(url: string, body?: unknown): Promise<T> {
   const useMock = useAppStore.getState().useMockData;
   if (useMock) {
     await new Promise((resolve) => setTimeout(resolve, 350));
     return getMockPostResponse<T>(url, body);
   }
+  const { data } = await apiClient.post<T | ApiResponse<T>>(url, body);
+  return unwrapResponse(data);
+}
+
+export async function apiPostLive<T>(
+  url: string,
+  body?: unknown
+): Promise<T> {
   const { data } = await apiClient.post<T | ApiResponse<T>>(url, body);
   return unwrapResponse(data);
 }

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_session
@@ -14,22 +14,74 @@ router = APIRouter()
 
 
 class ForecastTrainRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "horizon_days": 1,
+                "hotspot_id": None,
+                "model_version": "forecast-v1-h1",
+                "min_history_per_hotspot": 1,
+            }
+        }
+    )
+
     horizon_days: int = Field(default=1, ge=1, le=7)
-    hotspot_id: Optional[int] = None
-    model_version: str = "forecast-v1"
-    min_history_per_hotspot: int = Field(default=4, ge=1, le=30)
+    hotspot_id: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Positive hotspot ID, or null/0 to train across all hotspots.",
+    )
+    model_version: str = "forecast-v1-h1"
+    min_history_per_hotspot: int = Field(default=1, ge=1, le=30)
+
+    @field_validator("hotspot_id")
+    @classmethod
+    def normalize_hotspot_id(cls, value: Optional[int]) -> Optional[int]:
+        return None if value == 0 else value
 
 
 class ForecastGenerateRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "horizon_days": 1,
+                "hotspot_id": None,
+                "replace_existing": True,
+                "pipeline_run_id": "forecast-v1-h1",
+            }
+        }
+    )
+
     horizon_days: int = Field(default=1, ge=1, le=7)
-    hotspot_id: Optional[int] = None
+    hotspot_id: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Positive hotspot ID, or null/0 to generate for all hotspots.",
+    )
     replace_existing: bool = True
-    pipeline_run_id: Optional[str] = None
+    pipeline_run_id: Optional[str] = "forecast-v1-h1"
+
+    @field_validator("hotspot_id")
+    @classmethod
+    def normalize_hotspot_id(cls, value: Optional[int]) -> Optional[int]:
+        return None if value == 0 else value
 
 
 @router.post("/train")
 def train_forecast_model(
-    payload: ForecastTrainRequest,
+    payload: ForecastTrainRequest = Body(
+        openapi_examples={
+            "default": {
+                "summary": "Train across the current hotspot-level EIS dataset",
+                "value": {
+                    "horizon_days": 1,
+                    "hotspot_id": None,
+                    "model_version": "forecast-v1-h1",
+                    "min_history_per_hotspot": 1,
+                },
+            }
+        }
+    ),
     db: Session = Depends(db_session),
 ) -> Dict[str, Any]:
     try:
@@ -48,7 +100,19 @@ def train_forecast_model(
 
 @router.post("/generate")
 def generate_forecasts(
-    payload: ForecastGenerateRequest,
+    payload: ForecastGenerateRequest = Body(
+        openapi_examples={
+            "default": {
+                "summary": "Generate predictions for all available hotspots",
+                "value": {
+                    "horizon_days": 1,
+                    "hotspot_id": None,
+                    "replace_existing": True,
+                    "pipeline_run_id": "forecast-v1-h1",
+                },
+            }
+        }
+    ),
     db: Session = Depends(db_session),
 ) -> Dict[str, Any]:
     try:

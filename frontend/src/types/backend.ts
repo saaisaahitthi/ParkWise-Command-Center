@@ -53,6 +53,29 @@ export interface BackendForecastSummary {
   models_in_memory?: number;
 }
 
+export interface BackendForecastTrainResponse {
+  status: string;
+  horizon_days: number;
+  model_version: string;
+  model_type: string;
+  training_mode: string;
+  rows_used: number;
+  train_size: number;
+  validation_size: number;
+  mae: number | null;
+  r2: number | null;
+  feature_names: string[];
+}
+
+export interface BackendForecastGenerateResponse {
+  status: string;
+  horizon_days: number;
+  model_version: string;
+  forecasts_created: number;
+  replace_existing: boolean;
+  pipeline_run_id: string | null;
+}
+
 export interface BackendForecastItem {
   forecast_id: number;
   hotspot_id: number;
@@ -92,6 +115,28 @@ export interface BackendRouteLatest {
   hotspots_covered?: number | null;
   total_eis_covered?: number | null;
   stops?: BackendRouteStop[];
+  created_at?: string | null;
+}
+
+export interface BackendPatrolRouteDetail {
+  id: number;
+  route_name?: string | null;
+  shift_label?: string | null;
+  officer_count: number;
+  stops: Array<{
+    sequence: number;
+    hotspot_id: number;
+    hotspot_name?: string | null;
+    lat: number;
+    lon: number;
+    eis_score?: number | null;
+    estimated_arrival?: string | null;
+    recommended_duration_min?: number | null;
+  }>;
+  total_distance_km?: number | null;
+  estimated_duration_min?: number | null;
+  hotspots_covered?: number | null;
+  total_eis_covered?: number | null;
   created_at?: string | null;
 }
 

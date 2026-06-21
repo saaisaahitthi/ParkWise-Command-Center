@@ -1,9 +1,15 @@
 import { adaptDashboard } from "@/adapters/dashboard";
-import { apiGet } from "@/lib/api";
-import type { BackendDashboardFull } from "@/types/backend";
+import { apiGetLive } from "@/lib/api";
+import type {
+  BackendAllocationPlan,
+  BackendDashboardFull,
+} from "@/types/backend";
 import type { DashboardView } from "@/types/views";
 
 export async function fetchDashboard(): Promise<DashboardView> {
-  const raw = await apiGet<BackendDashboardFull>("/dashboard/full");
-  return adaptDashboard(raw);
+  const [dashboard, latestAllocation] = await Promise.all([
+    apiGetLive<BackendDashboardFull>("/dashboard/full"),
+    apiGetLive<BackendAllocationPlan>("/allocation/latest"),
+  ]);
+  return adaptDashboard(dashboard, latestAllocation);
 }

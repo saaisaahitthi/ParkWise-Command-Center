@@ -21,13 +21,12 @@ import {
   generatePatrolRoute,
 } from "@/services/patrol";
 import { patrolRouteInsight } from "@/data/patrolPresentationData";
-import { getLocationDisplayName } from "@/data/dashboardPresentationData";
 
 function latLngToXY(lat: number, lng: number) {
-  const minLat = 23.14;
-  const maxLat = 23.18;
-  const minLng = 79.92;
-  const maxLng = 79.96;
+  const minLat = 12.80;
+  const maxLat = 13.20;
+  const minLng = 77.45;
+  const maxLng = 77.80;
 
   const x = 20 + ((lng - minLng) / (maxLng - minLng)) * 60;
   const y = 80 - ((lat - minLat) / (maxLat - minLat)) * 60;
@@ -80,7 +79,8 @@ export default function PatrolPage() {
         <AlertTriangle className="mx-auto h-12 w-12 mb-3 text-red-500 animate-pulse" />
         <h3 className="text-lg font-semibold text-white">Patrol Stream Disconnected</h3>
         <p className="mt-2 text-sm text-slate-400">
-          Verify backend connectivity at <code className="text-red-200">http://127.0.0.1:8000/api/v1</code> or toggle header Mode to Mock.
+          The current Bengaluru patrol route could not be loaded. Check the
+          service connection and try again.
         </p>
       </div>
     );
@@ -110,7 +110,14 @@ export default function PatrolPage() {
   // Plot stops as markers
   const markers = stop_sequence.map((stop) => {
     const { x, y } = latLngToXY(stop.lat, stop.lng);
-    const color = stop.risk === "Critical" ? "#EF4444" : stop.risk === "High" ? "#F59E0B" : "#3B82F6";
+    const color =
+      stop.displayRiskTier === "Critical"
+        ? "#EF4444"
+        : stop.displayRiskTier === "High"
+          ? "#F59E0B"
+          : stop.displayRiskTier === "Medium"
+            ? "#3B82F6"
+            : "#10B981";
 
     return {
       id: `stop-${stop.sequence}`,
@@ -118,8 +125,8 @@ export default function PatrolPage() {
       lng: stop.lng,
       x,
       y,
-      label: `${stop.sequence}. ${stop.name}`,
-      risk: mapRiskLevel(stop.risk),
+      label: `${stop.sequence}. ${stop.displayName}`,
+      risk: mapRiskLevel(stop.displayRiskTier),
       color,
     };
   });
@@ -276,23 +283,23 @@ export default function PatrolPage() {
                     <div className="min-w-0 rounded-xl border border-white/[0.055] bg-black/10 px-3 py-2.5 transition group-hover:border-white/[0.09] group-hover:bg-white/[0.025]">
                       <div className="flex items-start justify-between gap-3">
                         <h4 className="min-w-0 truncate text-sm font-semibold text-slate-100">
-                          {getLocationDisplayName(stop.name)}
+                          {stop.displayName}
                         </h4>
                         <span
                           className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] shadow-sm ${
-                            stop.risk === "Critical"
+                            stop.displayRiskTier === "Critical"
                               ? "border-rose-400/20 bg-rose-400/[0.1] text-rose-200 shadow-rose-500/10"
-                              : stop.risk === "High"
+                              : stop.displayRiskTier === "High"
                                 ? "border-amber-300/20 bg-amber-300/[0.09] text-amber-200 shadow-amber-500/10"
                                 : "border-sky-300/20 bg-sky-300/[0.08] text-sky-200 shadow-sky-500/10"
                           }`}
                         >
-                          {stop.risk}
+                          {stop.displayRiskTier}
                         </span>
                       </div>
                       <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                         <Navigation className="h-3 w-3 text-slate-600" />
-                        Patrol stop rank priority #{stop.sequence}
+                        {stop.displaySubtext}
                       </p>
                     </div>
                   </div>

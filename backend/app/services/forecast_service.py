@@ -171,36 +171,77 @@ class ForecastService:
         self,
         horizon_days: int = 1,
         hotspot_id: Optional[int] = None,
-        model_version: str = "forecast-v1",
-        min_history_per_hotspot: int = 4,
+        model_version: str = "forecast-v1-h1",
+        min_history_per_hotspot: int = 1,
     ) -> Dict[str, Any]:
-        eis_scores = self.repository.get_historical_eis_scores(hotspot_id=hotspot_id)
+        if hotspot_id is not None and hotspot_id < 0:
+            raise ValueError("hotspot_id must be a positive integer or 0 for all hotspots.")
+
+        effective_hotspot_id = hotspot_id or None
+        eis_scores = self.repository.get_historical_eis_scores(
+            hotspot_id=effective_hotspot_id
+        )
 
         if not eis_scores:
-            raise ValueError("No EIS rows are available for forecast training.")
+            total_rows = self.repository.count_eis_scores()
+            if total_rows > 0 and effective_hotspot_id is not None:
+                raise ValueError(
+                    f"eis_scores contains {total_rows} rows, but 0 rows matched "
+                    f"hotspot_id={effective_hotspot_id}. Remove the hotspot filter "
+                    "or provide an existing positive hotspot_id."
+                )
+            raise ValueError(
+                "No EIS rows are available for forecast training "
+                f"(eis_scores table count: {total_rows})."
+            )
 
         histories: Dict[int, int] = {}
         for row in eis_scores:
             histories[row.hotspot_id] = histories.get(row.hotspot_id, 0) + 1
 
-        demo_mode = (
+        if (
+            min_history_per_hotspot > 1
+            and max(histories.values(), default=0) == 1
+        ):
+            raise ValueError(
+                "Current dataset has one EIS row per hotspot. Use "
+                "min_history_per_hotspot=1 for hotspot-level cross-sectional "
+                "training."
+            )
+
+        cross_sectional_mode = (
             min_history_per_hotspot == 1
             and max(histories.values(), default=0) == 1
         )
 
-        if demo_mode:
+        if cross_sectional_mode:
             model, result, rows_used = self._train_cross_sectional(
                 eis_scores=eis_scores,
-                model_version=f"{model_version}-h{horizon_days}",
+                model_version=self._model_version_for_horizon(
+                    model_version,
+                    horizon_days,
+                ),
             )
             training_mode = "cross_sectional"
         else:
             trainer = ForecastTrainer(model_version=model_version)
-            output = trainer.train(
-                eis_scores=eis_scores,
-                horizon_days=horizon_days,
-                min_history_per_hotspot=min_history_per_hotspot,
-            )
+            try:
+                output = trainer.train(
+                    eis_scores=eis_scores,
+                    horizon_days=horizon_days,
+                    min_history_per_hotspot=min_history_per_hotspot,
+                )
+            except ValueError as exc:
+                eligible_hotspots = sum(
+                    count >= min_history_per_hotspot
+                    for count in histories.values()
+                )
+                raise ValueError(
+                    f"{exc}. Source rows: {len(eis_scores)}; "
+                    f"distinct hotspots: {len(histories)}; hotspots meeting "
+                    f"min_history_per_hotspot={min_history_per_hotspot}: "
+                    f"{eligible_hotspots}."
+                ) from exc
             model = output.model
             result = output.training_result
             rows_used = output.rows_used
@@ -235,6 +276,14 @@ class ForecastService:
             "r2": self._json_metric(result.r2),
             "feature_names": result.feature_names,
         }
+
+    @staticmethod
+    def _model_version_for_horizon(
+        model_version: str,
+        horizon_days: int,
+    ) -> str:
+        suffix = f"-h{horizon_days}"
+        return model_version if model_version.endswith(suffix) else f"{model_version}{suffix}"
 
     def _train_cross_sectional(
         self,
@@ -293,16 +342,34 @@ class ForecastService:
         horizon_days: int = 1,
         hotspot_id: Optional[int] = None,
         replace_existing: bool = True,
-        pipeline_run_id: Optional[str] = None,
+        pipeline_run_id: Optional[str] = "forecast-v1-h1",
         commit: bool = True,
     ) -> Dict[str, Any]:
+        if hotspot_id is not None and hotspot_id < 0:
+            raise ValueError("hotspot_id must be a positive integer or 0 for all hotspots.")
+
+        effective_hotspot_id = hotspot_id or None
         model = _MODEL_REGISTRY.get(horizon_days)
 
         if model is None:
             model = self._load_latest_model_artifact(horizon_days)
             _MODEL_REGISTRY[horizon_days] = model
 
-        eis_scores = self.repository.get_historical_eis_scores(hotspot_id=hotspot_id)
+        eis_scores = self.repository.get_historical_eis_scores(
+            hotspot_id=effective_hotspot_id
+        )
+        if not eis_scores:
+            total_rows = self.repository.count_eis_scores()
+            if total_rows > 0 and effective_hotspot_id is not None:
+                raise ValueError(
+                    f"eis_scores contains {total_rows} rows, but 0 rows matched "
+                    f"hotspot_id={effective_hotspot_id}. Remove the hotspot filter "
+                    "or provide an existing positive hotspot_id."
+                )
+            raise ValueError(
+                "No EIS rows are available for forecast generation "
+                f"(eis_scores table count: {total_rows})."
+            )
 
         if isinstance(model, CrossSectionalForecastModel):
             predictor = ForecastPredictor(

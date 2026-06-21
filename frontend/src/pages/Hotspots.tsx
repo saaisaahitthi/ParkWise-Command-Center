@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CarFront,
@@ -11,35 +10,22 @@ import {
 } from "lucide-react";
 import { MapMyIndiaWrapper } from "@/components/maps/MapMyIndiaWrapper";
 import { Card } from "@/components/ui/card";
-import { getLocationDisplayName } from "@/data/dashboardPresentationData";
-import { apiGet } from "@/lib/api";
+import { adaptHotspotRecords } from "@/adapters/hotspots";
+import {
+  useHotspotDisplayUniverse,
+  useHotspots,
+} from "@/hooks/useHotspots";
 import { PageHeader } from "@/layout/PageHeader";
 
-interface HotspotRecord {
-  hotspot_name: string;
-  centroid_lat: number;
-  centroid_lon: number;
-  total_violations: number;
-  dominant_violation_type: string;
-  dominant_vehicle_category: string;
-  unique_dates: number;
-}
-
-interface HotspotListResponse {
-  items: HotspotRecord[];
-  total: number;
-  page_size: number;
-}
-
-type HotspotRisk = "Critical" | "High" | "Medium";
+type HotspotRisk = "Critical" | "High" | "Medium" | "Low";
 
 const numberFormatter = new Intl.NumberFormat("en-IN");
 
 function latLngToXY(lat: number, lng: number) {
-  const minLat = 23.14;
-  const maxLat = 23.18;
-  const minLng = 79.92;
-  const maxLng = 79.96;
+  const minLat = 12.80;
+  const maxLat = 13.20;
+  const minLng = 77.45;
+  const maxLng = 77.80;
 
   const x = 20 + ((lng - minLng) / (maxLng - minLng)) * 60;
   const y = 80 - ((lat - minLat) / (maxLat - minLat)) * 60;
@@ -47,16 +33,12 @@ function latLngToXY(lat: number, lng: number) {
   return { x, y };
 }
 
-function getHotspotRisk(totalViolations: number): HotspotRisk {
-  if (totalViolations >= 650) return "Critical";
-  if (totalViolations >= 450) return "High";
-  return "Medium";
-}
-
 function getRiskColor(risk: HotspotRisk) {
   if (risk === "Critical") return "#EF4444";
   if (risk === "High") return "#F59E0B";
-  return "#3B82F6";
+  if (risk === "Medium") return "#3B82F6";
+  if (risk === "Low") return "#10B981";
+  return "#10B981";
 }
 
 function getRiskClasses(risk: HotspotRisk) {
@@ -66,7 +48,13 @@ function getRiskClasses(risk: HotspotRisk) {
   if (risk === "High") {
     return "border-amber-400/20 bg-amber-400/10 text-amber-200";
   }
-  return "border-blue-400/20 bg-blue-400/10 text-blue-200";
+  if (risk === "Medium") {
+    return "border-blue-400/20 bg-blue-400/10 text-blue-200";
+  }
+  if (risk === "Low") {
+    return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
+  }
+  return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
 }
 
 export default function HotspotsPage() {
@@ -75,16 +63,18 @@ export default function HotspotsPage() {
   const [minViolations, setMinViolations] = useState(0);
   const [selectedHotspotName, setSelectedHotspotName] = useState("");
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["hotspots", page, minViolations],
-    queryFn: () =>
-      apiGet<HotspotListResponse>(
-        `/hotspots?page=${page}&page_size=10&min_violations=${minViolations}`
-      ),
-    refetchInterval: 10000,
+  const { data, isLoading, error } = useHotspots({
+    page,
+    page_size: 10,
+    min_violations: minViolations,
   });
+  const {
+    data: riskUniverse = [],
+    isLoading: isRiskLoading,
+    error: riskError,
+  } = useHotspotDisplayUniverse();
 
-  if (isLoading) {
+  if (isLoading || isRiskLoading) {
     return (
       <div className="flex h-96 items-center justify-center text-slate-400">
         <div className="flex flex-col items-center gap-3">
@@ -95,7 +85,7 @@ export default function HotspotsPage() {
     );
   }
 
-  if (error || !data) {
+  if (error || riskError || !data) {
     return (
       <div className="rounded-3xl border border-red-900 bg-red-950/20 p-8 text-center text-red-300">
         <AlertTriangle className="mx-auto mb-3 h-12 w-12 text-red-500" />
@@ -111,41 +101,41 @@ export default function HotspotsPage() {
   }
 
   const { items = [], total = 0, page_size = 10 } = data;
+  const displayItems = adaptHotspotRecords(items, riskUniverse);
   const normalizedSearch = searchQuery.trim().toLowerCase();
-  const filteredItems = items.filter((item) =>
-    item.hotspot_name.toLowerCase().includes(normalizedSearch)
+  const filteredItems = displayItems.filter((item) =>
+    `${item.displayName} ${item.hotspot_name ?? ""}`
+      .toLowerCase()
+      .includes(normalizedSearch)
   );
 
   const markers = filteredItems.map((item) => {
     const { x, y } = latLngToXY(item.centroid_lat, item.centroid_lon);
-    const risk = getHotspotRisk(item.total_violations);
-
     return {
-      id: item.hotspot_name,
+      id: String(item.id),
       lat: item.centroid_lat,
       lng: item.centroid_lon,
       x,
       y,
-      label: getLocationDisplayName(item.hotspot_name),
-      risk,
-      color: getRiskColor(risk),
-      selected: item.hotspot_name === selectedHotspotName,
+      label: item.displayName,
+      risk: item.displayRiskTier,
+      color: getRiskColor(item.displayRiskTier),
+      selected: String(item.id) === selectedHotspotName,
     };
   });
 
   const selectedHotspot =
     filteredItems.find(
-      (hotspot) => hotspot.hotspot_name === selectedHotspotName
+      (hotspot) => String(hotspot.id) === selectedHotspotName
     ) ?? filteredItems[0];
-
   const popups =
     selectedHotspot &&
-    selectedHotspot.hotspot_name === selectedHotspotName
+    String(selectedHotspot.id) === selectedHotspotName
       ? [
           {
-            id: `popup-${selectedHotspot.hotspot_name}`,
-            title: getLocationDisplayName(selectedHotspot.hotspot_name),
-            description: `Total Violations: ${selectedHotspot.total_violations} | Dominant: ${selectedHotspot.dominant_violation_type} (${selectedHotspot.dominant_vehicle_category})`,
+            id: `popup-${selectedHotspot.id}`,
+            title: selectedHotspot.displayName,
+            description: `Risk: ${selectedHotspot.displayRiskTier} · Rank: #${selectedHotspot.displayRiskRank} · Violations: ${numberFormatter.format(selectedHotspot.total_violations)} · ${selectedHotspot.displaySubtext ?? "Coordinates unavailable"}`,
             position: latLngToXY(
               selectedHotspot.centroid_lat,
               selectedHotspot.centroid_lon
@@ -177,15 +167,18 @@ export default function HotspotsPage() {
               <Crosshair className="h-4 w-4" />
             </span>
             <p className="mt-4 text-[9px] font-semibold uppercase tracking-[0.24em] text-cyan-300/70">
-              Investigation Controls
+              Table Filters
             </p>
             <h2 className="mt-1 text-base font-semibold text-white">
-              Filter hotspots
+              Filter Hotspot Records
             </h2>
             <p className="mt-1.5 text-xs leading-5 text-slate-500">
-              Narrow the current records by location name and minimum violation
-              volume.
+              These controls filter the visible map records and the hotspot
+              records table below.
             </p>
+            <span className="mt-3 inline-flex rounded-full border border-cyan-300/12 bg-cyan-300/[0.055] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-cyan-200/75">
+              Applies to visible records
+            </span>
           </div>
 
           <div className="relative mt-5 space-y-5">
@@ -250,13 +243,14 @@ export default function HotspotsPage() {
         <div className="hotspot-map-shell rounded-[28px] border border-cyan-300/10 bg-slate-950/50 p-1.5 shadow-[0_35px_90px_-55px_rgba(34,211,238,0.65)]">
           <MapMyIndiaWrapper
             title="Spatial Hotspot Distribution"
-            subtitle="Select a map marker or table record to inspect its congestion centroid."
+            subtitle={`Map preview: ${filteredItems.length} visible · ${numberFormatter.format(total)} records match server filters`}
             markers={markers}
             popups={popups}
             legendItems={[
-              { label: "Critical ≥650", color: "#EF4444" },
-              { label: "High 450–649", color: "#F59E0B" },
-              { label: "Medium <450", color: "#3B82F6" },
+              { label: "Critical", color: "#EF4444" },
+              { label: "High", color: "#F59E0B" },
+              { label: "Medium", color: "#3B82F6" },
+              { label: "Low", color: "#10B981" },
             ]}
             onMarkerClick={(marker) => setSelectedHotspotName(marker.id)}
             variant="dashboard"
@@ -305,14 +299,13 @@ export default function HotspotsPage() {
                 </tr>
               ) : (
                 filteredItems.map((item) => {
-                  const risk = getHotspotRisk(item.total_violations);
-                  const isSelected =
-                    item.hotspot_name === selectedHotspotName;
+                  const risk = item.displayRiskTier;
+                  const isSelected = String(item.id) === selectedHotspotName;
 
                   return (
                     <tr
-                      key={item.hotspot_name}
-                      onClick={() => setSelectedHotspotName(item.hotspot_name)}
+                      key={item.id}
+                      onClick={() => setSelectedHotspotName(String(item.id))}
                       className={`cursor-pointer transition duration-200 hover:bg-cyan-300/[0.035] ${
                         isSelected
                           ? "bg-cyan-300/[0.055] text-white"
@@ -327,12 +320,21 @@ export default function HotspotsPage() {
                                 ? "text-rose-400"
                                 : risk === "High"
                                   ? "text-amber-400"
-                                  : "text-blue-400"
+                                  : risk === "Medium"
+                                    ? "text-blue-400"
+                                    : "text-emerald-400"
                             }`}
                             style={{ backgroundColor: "currentColor" }}
                           />
-                          <span className="font-medium text-slate-200">
-                            {getLocationDisplayName(item.hotspot_name)}
+                          <span className="min-w-0">
+                            <span className="block font-medium text-slate-200">
+                              {item.displayName}
+                            </span>
+                            {item.displaySubtext ? (
+                              <span className="mt-0.5 block font-mono text-[9px] text-slate-600">
+                                {item.displaySubtext}
+                              </span>
+                            ) : null}
                           </span>
                         </div>
                       </td>
@@ -349,16 +351,16 @@ export default function HotspotsPage() {
                         {numberFormatter.format(item.total_violations)}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-400">
-                        {item.dominant_violation_type}
+                        {item.dominant_violation_type ?? "Unknown"}
                       </td>
                       <td className="px-4 py-3.5">
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-black/20 px-2.5 py-1 text-[10px] text-slate-400">
                           <CarFront className="h-3 w-3" />
-                          {item.dominant_vehicle_category}
+                          {item.dominant_vehicle_category ?? "Unknown"}
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-center font-mono text-xs text-slate-400">
-                        {item.unique_dates}
+                        {item.unique_dates ?? "—"}
                       </td>
                       <td className="px-4 py-3.5 text-right font-mono text-[10px] text-slate-500">
                         {item.centroid_lat.toFixed(4)},{" "}

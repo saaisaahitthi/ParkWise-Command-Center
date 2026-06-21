@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "parkwise-backend",
+			"path": ".."
+		},
+		{
+			"name": "backend",
+			"path": "../../../../Downloads/ParkWise-Command-Center-main (1)/ParkWise-Command-Center-main/backend"
+		},
+		{
+			"name": "frontend",
+			"path": "../../../../Downloads/ParkWise-Command-Center-main (1)/ParkWise-Command-Center-main/frontend"
+		}
+	],
+	"settings": {}
+}

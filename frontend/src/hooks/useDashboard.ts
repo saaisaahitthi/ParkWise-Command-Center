@@ -6,5 +6,7 @@ export function useDashboard() {
     queryKey: ["dashboard-full"],
     queryFn: fetchDashboard,
     refetchInterval: 10_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }

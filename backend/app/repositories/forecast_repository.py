@@ -38,6 +38,12 @@ class ForecastRepository:
 
         return list(query.all())
 
+    def count_eis_scores(self, hotspot_id: Optional[int] = None) -> int:
+        query = self.db.query(func.count(EISScore.id))
+        if hotspot_id is not None:
+            query = query.filter(EISScore.hotspot_id == hotspot_id)
+        return int(query.scalar() or 0)
+
     def create_forecast(
         self,
         hotspot_id: int,
@@ -75,24 +81,24 @@ class ForecastRepository:
         forecast_rows: Sequence[Dict[str, Any]],
         commit: bool = False,
     ) -> List[Forecast]:
-        created: List[Forecast] = []
-
-        for row in forecast_rows:
-            created.append(
-                self.create_forecast(
-                    hotspot_id=row["hotspot_id"],
-                    forecast_date=row["forecast_date"],
-                    horizon_days=row["horizon_days"],
-                    predicted_eis=row["predicted_eis"],
-                    predicted_risk_category=row["predicted_risk_category"],
-                    confidence_lower=row.get("confidence_lower"),
-                    confidence_upper=row.get("confidence_upper"),
-                    shap_values=row.get("shap_values"),
-                    top_features=row.get("top_features"),
-                    model_version=row.get("model_version", "forecast-v1"),
-                    pipeline_run_id=row.get("pipeline_run_id"),
-                )
+        created = [
+            Forecast(
+                hotspot_id=row["hotspot_id"],
+                forecast_date=row["forecast_date"],
+                horizon_days=row["horizon_days"],
+                predicted_eis=row["predicted_eis"],
+                predicted_risk_category=row["predicted_risk_category"],
+                confidence_lower=row.get("confidence_lower"),
+                confidence_upper=row.get("confidence_upper"),
+                shap_values=row.get("shap_values"),
+                top_features=row.get("top_features"),
+                model_version=row.get("model_version", "forecast-v1"),
+                pipeline_run_id=row.get("pipeline_run_id"),
             )
+            for row in forecast_rows
+        ]
+        self.db.add_all(created)
+        self.db.flush()
 
         if commit:
             self.db.commit()

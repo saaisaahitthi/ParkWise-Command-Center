@@ -1,5 +1,10 @@
 import type { BackendEISScore, BackendEISScoreListResponse } from "@/types/backend";
 import type { EISScoreView } from "@/types/views";
+import type { HotspotDisplayUniverseItem } from "@/services/hotspotDisplay";
+import {
+  applyPercentileRiskTiers,
+  getHotspotDisplayName,
+} from "@/utils/hotspotDisplay";
 
 /** Normalize component scores that may be stored as 0–1 or 0–100. */
 export function normalizeComponentScore(value: number): number {
@@ -22,6 +27,9 @@ export function adaptEisScore(score: BackendEISScore): EISScoreView {
     hotspot_label: `Hotspot #${score.hotspot_id}`,
     eis_score: score.eis_score,
     risk_category: score.risk_category,
+    displayName: getHotspotDisplayName({ hotspot_id: score.hotspot_id }),
+    displaySubtext: null,
+    displayRiskTier: "Low",
     frequency_score: frequency,
     recurrence_score: recurrence,
     density_score: density,
@@ -33,7 +41,31 @@ export function adaptEisScore(score: BackendEISScore): EISScoreView {
 }
 
 export function adaptEisScoreList(
-  response: BackendEISScoreListResponse
+  response: BackendEISScoreListResponse,
+  riskUniverse: HotspotDisplayUniverseItem[] = []
 ): EISScoreView[] {
-  return response.items.map(adaptEisScore);
+  const scores = response.items.map(adaptEisScore);
+  const ranked = riskUniverse.length
+    ? riskUniverse
+    : applyPercentileRiskTiers(
+        scores.map((score) => ({
+          hotspot_id: score.hotspot_id,
+          eis_score: score.eis_score,
+        }))
+      );
+  const tierByHotspot = new Map(
+    ranked.map((score) => [score.hotspot_id, score.displayRiskTier])
+  );
+  const displayByHotspot = new Map(
+    riskUniverse.map((hotspot) => [hotspot.hotspot_id, hotspot])
+  );
+  return scores.map((score) => ({
+    ...score,
+    displayName:
+      displayByHotspot.get(score.hotspot_id)?.displayName ??
+      score.displayName,
+    displaySubtext:
+      displayByHotspot.get(score.hotspot_id)?.displaySubtext ?? null,
+    displayRiskTier: tierByHotspot.get(score.hotspot_id) ?? "Low",
+  }));
 }

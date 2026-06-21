@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 try:
     import shap
@@ -9,6 +9,10 @@ except Exception:
 
 
 class ForecastExplainer:
+    def __init__(self) -> None:
+        self._shap_explainer: Any = None
+        self._shap_model_id: Optional[int] = None
+
     def explain(
         self,
         model: Any,
@@ -43,8 +47,11 @@ class ForecastExplainer:
         feature_names: Sequence[str],
         top_n: int,
     ) -> Dict[str, Any]:
-        explainer = shap.Explainer(model.model)
-        values = explainer([list(features)])
+        model_id = id(model.model)
+        if self._shap_explainer is None or self._shap_model_id != model_id:
+            self._shap_explainer = shap.Explainer(model.model)
+            self._shap_model_id = model_id
+        values = self._shap_explainer([list(features)])
         shap_values = values.values[0]
 
         factors = []

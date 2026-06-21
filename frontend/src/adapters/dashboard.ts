@@ -1,7 +1,11 @@
 import type {
+  BackendAllocationPlan,
   BackendDashboardFull,
-  BackendRiskDistribution,
 } from "@/types/backend";
+import {
+  applyPercentileRiskTiers,
+  type DisplayRiskTier,
+} from "@/utils/hotspotDisplay";
 import type {
   DashboardHotspotMarker,
   DashboardMetric,
@@ -17,11 +21,21 @@ const RISK_COLORS: Record<string, string> = {
 };
 
 export function adaptRiskDistribution(
-  distribution: BackendRiskDistribution
+  hotspots: DashboardHotspotMarker[]
 ): RiskChartSegment[] {
+  const distribution: Record<DisplayRiskTier, number> = {
+    Critical: 0,
+    High: 0,
+    Medium: 0,
+    Low: 0,
+  };
+  hotspots.forEach((hotspot) => {
+    distribution[hotspot.displayRiskTier] += 1;
+  });
+
   return (["Critical", "High", "Medium", "Low"] as const).map((name) => ({
     name,
-    value: distribution[name] ?? 0,
+    value: distribution[name],
     color: RISK_COLORS[name],
   }));
 }
@@ -41,7 +55,7 @@ function totalViolations(hotspots: DashboardHotspotMarker[]): number {
 export function adaptHotspotMap(
   items: BackendDashboardFull["hotspot_map"]
 ): DashboardHotspotMarker[] {
-  return items.map((item) => ({
+  const mapped = items.map((item) => ({
     hotspot_id: item.hotspot_id,
     name: item.name ?? `Hotspot #${item.hotspot_id}`,
     latitude: item.latitude,
@@ -53,13 +67,37 @@ export function adaptHotspotMap(
     forecasted_eis: item.forecasted_eis,
     officers_allocated: item.officers_allocated,
   }));
+  return applyPercentileRiskTiers(mapped);
 }
 
-export function adaptDashboard(data: BackendDashboardFull): DashboardView {
+export function adaptDashboard(
+  data: BackendDashboardFull,
+  latestAllocation: BackendAllocationPlan
+): DashboardView {
   const hotspotMap = adaptHotspotMap(data.hotspot_map);
   const { executive_summary: summary } = data;
   const avgEis = averageEis(hotspotMap);
-  const highRiskZones = summary.critical_hotspots + summary.high_risk_hotspots;
+  const priorityZones = hotspotMap.filter(
+    (hotspot) => hotspot.displayRiskTier !== "Low"
+  ).length;
+  const deployedOfficers = latestAllocation.allocations.reduce(
+    (sum, allocation) => sum + (allocation.officers_allocated ?? 0),
+    0
+  );
+
+  if (import.meta.env.DEV) {
+    const distribution = Object.fromEntries(
+      adaptRiskDistribution(hotspotMap).map((segment) => [
+        segment.name.toLowerCase(),
+        segment.value,
+      ])
+    );
+    console.debug("Dashboard risk distribution computed:", {
+      total: hotspotMap.length,
+      ...distribution,
+      priority: priorityZones,
+    });
+  }
 
   const metrics: DashboardMetric[] = [
     {
@@ -68,13 +106,13 @@ export function adaptDashboard(data: BackendDashboardFull): DashboardView {
       delta: "",
     },
     {
-      label: "High Risk Zones",
-      value: highRiskZones,
+      label: "Priority Zones",
+      value: priorityZones,
       delta: "",
     },
     {
       label: "Officers on Duty",
-      value: summary.total_allocated_officers,
+      value: deployedOfficers,
       delta: "",
     },
     {
@@ -86,7 +124,7 @@ export function adaptDashboard(data: BackendDashboardFull): DashboardView {
 
   return {
     metrics,
-    riskChart: adaptRiskDistribution(data.risk_distribution),
+    riskChart: adaptRiskDistribution(hotspotMap),
     hotspotMap,
     lastUpdatedAt: summary.last_updated_at,
   };

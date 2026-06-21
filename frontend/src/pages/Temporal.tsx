@@ -9,14 +9,6 @@ import { Card } from "@/components/ui/card";
 import { useEisScores } from "@/hooks/useTemporal";
 import { PageHeader } from "@/layout/PageHeader";
 
-function formatHotspotId(hotspotId: string | number) {
-  return String(hotspotId)
-    .replace("hotspot-", "")
-    .toUpperCase()
-    .split("-")
-    .join(" ");
-}
-
 function riskClasses(risk: string) {
   if (risk === "Critical") {
     return "border-rose-400/20 bg-rose-400/10 text-rose-200";
@@ -196,7 +188,7 @@ export default function TemporalPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3.5 font-medium text-slate-200">
-                          {item.hotspot_label || formatHotspotId(item.hotspot_id)}
+                          {item.displayName}
                         </td>
                         <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-cyan-200">
                           {item.eis_score.toFixed(1)}
@@ -204,10 +196,10 @@ export default function TemporalPage() {
                         <td className="px-4 py-3.5 text-center">
                           <span
                             className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] shadow-[0_8px_20px_-14px_currentColor] ${riskClasses(
-                              item.risk_category
+                              item.displayRiskTier
                             )}`}
                           >
-                            {item.risk_category}
+                            {item.displayRiskTier}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-right font-mono text-xs tabular-nums text-slate-400">
@@ -241,8 +233,7 @@ export default function TemporalPage() {
               <div className="mt-2 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-display text-xl font-bold tracking-tight text-white">
-                    {selectedScore.hotspot_label ||
-                      formatHotspotId(selectedScore.hotspot_id)}
+                    {selectedScore.displayName}
                   </h2>
                   <p className="mt-1 text-[10px] text-slate-500">
                     Rank #{selectedScore.rank} in current priority order
@@ -250,10 +241,10 @@ export default function TemporalPage() {
                 </div>
                 <span
                   className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] shadow-[0_8px_20px_-14px_currentColor] ${riskClasses(
-                    selectedScore.risk_category
+                    selectedScore.displayRiskTier
                   )}`}
                 >
-                  {selectedScore.risk_category}
+                  {selectedScore.displayRiskTier}
                 </span>
               </div>
             </div>
