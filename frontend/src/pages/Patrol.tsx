@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -67,6 +67,12 @@ export default function PatrolPage() {
       setTimeout(() => setRouted(false), 3000);
     },
   });
+
+  useEffect(() => {
+    if (error && !data && !generateRouteMutation.isPending && !routed) {
+      generateRouteMutation.mutate();
+    }
+  }, [error, data, generateRouteMutation, routed]);
 
   if (isLoading) {
     return (

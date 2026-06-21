@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -104,6 +104,12 @@ export default function ForecastPage() {
   const hasForecastData = (summary?.totalForecasts ?? 0) > 0;
   const isProcessing =
     operationPhase === "training" || operationPhase === "generating";
+
+  useEffect(() => {
+    if (!isSummaryLoading && !hasForecastData && !isProcessing && operationPhase === "idle" && !summaryError) {
+      recomputeMutation.mutate();
+    }
+  }, [isSummaryLoading, hasForecastData, isProcessing, operationPhase, summaryError, recomputeMutation]);
   const buttonLabel =
     operationPhase === "training"
       ? "Training Forecast..."

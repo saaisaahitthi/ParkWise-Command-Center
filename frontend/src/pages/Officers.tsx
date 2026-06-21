@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -61,6 +61,12 @@ export default function OfficersPage() {
       setComputeError(getErrorMessage(mutationError));
     },
   });
+
+  useEffect(() => {
+    if (error && !data && !computeMutation.isPending && !updated) {
+      computeMutation.mutate();
+    }
+  }, [error, data, computeMutation, updated]);
 
   if (isLoading) {
     return (
